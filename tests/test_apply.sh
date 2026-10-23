@@ -19,7 +19,7 @@ setup() {
   mkdir -p "$WORK/etc"
   printf '%s' "$ORIGINAL_HOSTS" > "$WORK/hosts"
   printf '%s\n' '# SNS' 'www.youtube.com' '' '  x.com   # 行末コメント' > "$WORK/etc/blocklist"
-  printf 'ALLOW_START=%s\nALLOW_END=%s\n' "${1:-2100}" "${2:-2200}" > "$WORK/etc/config"
+  printf 'ALLOW=%s-%s\n' "${1:-2100}" "${2:-2200}" > "$WORK/etc/config"
 }
 
 # 引数: 現在時刻 HHMM。終了コードを返す
@@ -63,7 +63,7 @@ echo "24 時間許可（00:00-24:00）"
 setup 0000 2400; run 0000; assert_unblocked "00:00 もブロックしない"
 setup 0000 2400; run 1200; assert_unblocked "12:00 もブロックしない"
 setup 0000 2400; run 2359; assert_unblocked "23:59 もブロックしない"
-setup; run 2059; printf 'ALLOW_START=0000\nALLOW_END=2400\n' > "$WORK/etc/config"; run 2059
+setup; run 2059; printf 'ALLOW=0000-2400\n' > "$WORK/etc/config"; run 2059
 assert_unblocked "ブロック中に 24 時間許可へ変えたら解除する"
 
 echo "hosts の書き換え内容"
@@ -102,8 +102,8 @@ assert_unblocked "ブロック中にドメインを全部消したらブロッ�
 check "外したときは「解除しました」と記録する" "$(grep -c '解除しました' "$WORK/stdout")" 1
 
 echo "設定ファイルの読み方"
-setup; printf '# コメント\nALLOW_START=2100\nALLOW_END=2200\nALLOW_END=2300\n' > "$WORK/etc/config"
-run 2230; assert_unblocked "同じキーが複数あれば最後の値を使う（22:30 は 21:00-23:00 の内側）"
+setup; printf '# コメント\nALLOW=2100-2200\nALLOW=2100-2300\n' > "$WORK/etc/config"
+run 2230; assert_unblocked "ALLOW が複数行あれば最後の行を使う（22:30 は 21:00-23:00 の内側）"
 
 echo "異常系（hosts を変更せずにエラー終了する）"
 assert_error_unchanged() {
@@ -127,11 +127,11 @@ assert_error_unchanged "blocklist にドメイン以外（URL）が書かれて�
 setup; rm "$WORK/etc/config"
 assert_error_unchanged "config が無い" run 2059
 setup 2500 2200
-assert_error_unchanged "ALLOW_START が不正（2500）" run 2059
+assert_error_unchanged "許可時間帯の開始が不正（2500）" run 2059
 setup 2100 22:00
-assert_error_unchanged "ALLOW_END が不正（22:00 形式）" run 2059
-setup; printf 'ALLOW_START=2100\n' > "$WORK/etc/config"
-assert_error_unchanged "ALLOW_END が無い" run 2059
+assert_error_unchanged "許可時間帯の終了が不正（22:00 形式）" run 2059
+setup; printf 'ALLOW=2100\n' > "$WORK/etc/config"
+assert_error_unchanged "許可時間帯の終了が無い（ALLOW=2100）" run 2059
 setup; assert_error_unchanged "現在時刻が不正（2460）" run 2460
 setup; assert_error_unchanged "現在時刻が不正（abc）" run abc
 setup; printf '%s\n' '# >>> curfeed >>>' '0.0.0.0 www.youtube.com' >> "$WORK/hosts"

@@ -34,15 +34,14 @@ check "blocklist に登録方法の案内を書く" "$(grep -c 'curfeed add' "$W
 
 echo "init_settings（設定が既にあるとき）"
 mkdir -p "$WORK/etc"
-printf 'ALLOW_START=0700\nALLOW_END=0800\n' > "$WORK/etc/config"
+printf 'ALLOW=0700-0800\n' > "$WORK/etc/config"
 printf 'x.com\n' > "$WORK/etc/blocklist"
 in_lib init_settings
-check "既存の config を上書きしない" "$(cat "$WORK/etc/config")" "ALLOW_START=0700
-ALLOW_END=0800"
+check "既存の config を上書きしない" "$(cat "$WORK/etc/config")" "ALLOW=0700-0800"
 check "既存の blocklist を上書きしない" "$(cat "$WORK/etc/blocklist")" "x.com"
 rm "$WORK/etc/blocklist"
 in_lib init_settings
-check "片方だけ無ければ、無い方だけ作る（config はそのまま）" "$(grep '^ALLOW_START=' "$WORK/etc/config")" "ALLOW_START=0700"
+check "片方だけ無ければ、無い方だけ作る（config はそのまま）" "$(cat "$WORK/etc/config")" "ALLOW=0700-0800"
 check "片方だけ無ければ、無い方だけ作る（blocklist を作る）" "$([ -e "$WORK/etc/blocklist" ] && echo yes)" yes
 
 echo "merge_windows（重なり・つながりをまとめる）"
@@ -63,12 +62,13 @@ check "ALLOW をカンマ区切りで読む" "$(cat "$WORK/stdout")" "1200-1300 
 load_config 'ALLOW=2100-2200,1200-1400,1300-1500'
 check "読むときも重なりをまとめて並べる" "$(cat "$WORK/stdout")" "1200-1500 2100-2200"
 load_config "ALLOW_START=2100
-ALLOW_END=2200"
-check "以前の形式（ALLOW_START / ALLOW_END）も読める" "$(cat "$WORK/stdout")" "2100-2200"
-load_config "ALLOW_START=0700
-ALLOW_END=0800
-ALLOW=2100-2200"
-check "両方あれば ALLOW を使う" "$(cat "$WORK/stdout")" "2100-2200"
+ALLOW_END=2200"; status=$?
+if [ "$status" -ne 0 ] && grep -q '許可時間帯が設定されていません' "$WORK/stderr"; then
+  ok "ALLOW の無い設定（以前の ALLOW_START / ALLOW_END だけ）は、設定されていないとして失敗する"
+else
+  ng "ALLOW の無い設定（以前の ALLOW_START / ALLOW_END だけ）は、設定されていないとして失敗する" \
+    "status=$status stdout=$(cat "$WORK/stdout")"
+fi
 load_config "ALLOW=1200-1300
 ALLOW=2100-2200"
 check "ALLOW が複数行あれば最後の行を使う" "$(cat "$WORK/stdout")" "2100-2200"

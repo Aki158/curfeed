@@ -13,7 +13,7 @@
 
 - macOS（macOS 26 で確認）
 - 管理者権限（インストールと設定の変更に必要）
-- Google Chrome（開いたままのタブを閉じる機能のみ。他のブラウザでも hosts によるブロックは効きます）
+- Google Chrome（開いたままのタブを閉じる機能と、残っている接続を切る機能に必要。他のブラウザでも hosts によるブロックは効きます）
 
 ## インストール
 
@@ -164,7 +164,9 @@ sudo rm -rf /usr/local/etc/curfeed /var/log/curfeed.log /var/log/curfeed-close-t
 make test     # すべてのテストを実行（実際の /etc/hosts や Chrome には触れません）
 ```
 
-テストは一時ディレクトリの hosts と設定を使い、Chrome の操作（`pgrep` / `pkill` / `osascript`）だけを差し替えて実行します。
+テストは hosts・設定・ログ・インストール先をすべて一時ディレクトリに置き、Chrome や macOS への操作
+（`osascript` / `pgrep` / `pkill` / `launchctl` / `sudo` など）だけを差し替えて実行します。
+`sh` は言語設定によって動きが変わることがあるので、英語（C）と日本語（ja_JP.UTF-8）の両方の言語設定で実行します。
 
 ## ライセンス
 

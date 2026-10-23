@@ -57,7 +57,7 @@ if cmp -s "$tmp" "$CURFEED_HOSTS"; then
   exit 0
 fi
 
-# /etc/hosts はシンボリックリンクなので mv ではなく中身を上書きする
+# ファイルの所有者や権限を変えないよう、mv で置き換えずに中身だけを書き換える
 cat "$tmp" > "$CURFEED_HOSTS"
 if [ "$block" -eq 1 ]; then
   echo "$(stamp) ブロックしました"

@@ -16,7 +16,7 @@ setup() {
   mkdir -p "$WORK/etc" "$WORK/log" "$WORK/stub"
   printf '127.0.0.1\tlocalhost\n' > "$WORK/hosts"
   printf '%s\n' '# SNS' 'www.youtube.com' '  x.com   # 行末コメント' > "$WORK/etc/blocklist"
-  printf 'ALLOW_START=2100\nALLOW_END=2200\n' > "$WORK/etc/config"
+  printf 'ALLOW=2100-2200\n' > "$WORK/etc/config"
 }
 
 # 引数: 現在時刻 HHMM, curfeed の引数...。終了コードを返す
@@ -78,7 +78,7 @@ check "夜が終わったら次は翌日の昼の許可時間帯" "$(line '次�
 setup; printf 'ALLOW=2300-0100\n' > "$WORK/etc/config"; apply_now 0030; run 0030 status
 check "日付をまたぐ許可時間帯の中なら、その終わりを表示する" "$(line '次のブロック:')" "次のブロック: 01:00（あと30分）"
 
-setup; printf 'ALLOW_START=0000\nALLOW_END=2400\n' > "$WORK/etc/config"; apply_now 2030; run 2030 status
+setup; printf 'ALLOW=0000-2400\n' > "$WORK/etc/config"; apply_now 2030; run 2030 status
 check "24 時間許可なら許可中" "$(line '状態:')" "状態: 許可中"
 check "24 時間許可であることを表示する" "$(line '許可時間帯:')" "許可時間帯: 00:00〜24:00（24時間）"
 check "24 時間許可なら次のブロックは無い" "$(line '次のブロック:')" "次のブロック: なし"

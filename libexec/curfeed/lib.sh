@@ -136,18 +136,13 @@ merge_windows() {
 }
 
 # config から許可時間帯を読み、まとめた結果を allow_windows に入れる。
-# 以前の形式（ALLOW_START / ALLOW_END）も読む。失敗したら理由を curfeed_error に入れて失敗する
+# 失敗したら理由を curfeed_error に入れて失敗する
 load_windows() {
   if [ ! -r "$CURFEED_CONFIG" ]; then
     curfeed_error="設定ファイルを読めません: $CURFEED_CONFIG"
     return 1
   fi
-  if grep -q '^ALLOW=' "$CURFEED_CONFIG"; then
-    _raw=$(sed -n 's/^ALLOW=//p' "$CURFEED_CONFIG" | tail -n 1)
-  else
-    _raw="$(sed -n 's/^ALLOW_START=//p' "$CURFEED_CONFIG" | tail -n 1)-$(sed -n 's/^ALLOW_END=//p' "$CURFEED_CONFIG" | tail -n 1)"
-    [ "$_raw" != "-" ] || _raw=""
-  fi
+  _raw=$(sed -n 's/^ALLOW=//p' "$CURFEED_CONFIG" | tail -n 1)
   allow_windows=""
   for _w in $(printf '%s' "$_raw" | tr ',' ' '); do
     if ! valid_window "$_w"; then

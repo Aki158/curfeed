@@ -6,16 +6,13 @@ set -eu
 cd "$(dirname "$0")"
 
 PREFIX=/usr/local
-ETC=$PREFIX/etc/curfeed
 LIBEXEC=$PREFIX/libexec/curfeed
 DAEMON_LABEL=local.curfeed
 DAEMON_PLIST=/Library/LaunchDaemons/$DAEMON_LABEL.plist
 AGENT_LABEL=local.curfeed.close-tabs
 AGENT_PLIST=/Library/LaunchAgents/$AGENT_LABEL.plist
-APPLY_LOG=/var/log/curfeed.log
-AGENT_LOG=/var/log/curfeed-close-tabs.log
 console_uid=$(stat -f %u /dev/console)
-CURFEED_ETC=$ETC
+# 設定・ログ・hosts の置き場所は lib.sh の値を使う
 . libexec/curfeed/lib.sh
 
 # 初回だけ元の hosts を退避する
@@ -36,10 +33,10 @@ chmod 644 "$CURFEED_CONFIG" "$CURFEED_BLOCKLIST"
 install -m 644 -o root -g wheel "launchd/$DAEMON_LABEL.plist" "$DAEMON_PLIST"
 install -m 644 -o root -g wheel "launchd/$AGENT_LABEL.plist" "$AGENT_PLIST"
 
-touch "$APPLY_LOG" "$AGENT_LOG"
-chmod 644 "$APPLY_LOG" "$AGENT_LOG"
+touch "$CURFEED_APPLY_LOG" "$CURFEED_CLOSE_TABS_LOG"
+chmod 644 "$CURFEED_APPLY_LOG" "$CURFEED_CLOSE_TABS_LOG"
 # タブを閉じるジョブはログイン中のユーザーの権限で動くので、そのユーザーが書けるようにする
-chown "$console_uid" "$AGENT_LOG"
+chown "$console_uid" "$CURFEED_CLOSE_TABS_LOG"
 
 # hosts を書き換える root のジョブ
 if launchctl print "system/$DAEMON_LABEL" > /dev/null 2>&1; then
@@ -59,7 +56,7 @@ fi
 
 echo
 echo "インストールしました"
-echo "  設定:   $ETC/（curfeed add / remove / set-time で変更できます）"
+echo "  設定:   ${CURFEED_ETC}/（curfeed add / remove / set-time で変更できます）"
 echo "  初めての場合は、ブロックするサイトと許可時間帯を決めてください:"
 echo "    curfeed add youtube.com www.youtube.com"
 echo "    curfeed set-time 21:00-22:00"
