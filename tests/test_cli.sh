@@ -64,6 +64,20 @@ check "ブロック対象が空なら 0 ドメインと表示する" "$(line '�
 check "ブロック対象が空なら登録方法を案内する" "$(grep -c 'curfew add' "$WORK/stdout")" 1
 check "ブロック対象が空なら hosts の反映待ちの注意は出さない" "$(grep -c '反映' "$WORK/stdout")" 0
 
+setup_multi() { setup; printf 'ALLOW=1200-1300,2100-2200\n' > "$WORK/etc/config"; }
+setup_multi; apply_now 1000; run 1000 status
+check "複数の許可時間帯を並べて表示する" "$(line '許可時間帯:')" "許可時間帯: 12:00〜13:00, 21:00〜22:00"
+check "次に始まる許可時間帯までの時間を表示する" "$(line '次の解除:')" "次の解除: 12:00（あと2時間）"
+setup_multi; apply_now 1230; run 1230 status
+check "昼の許可時間帯の中なら許可中" "$(line '状態:')" "状態: 許可中"
+check "今いる許可時間帯の終わりを表示する" "$(line '次のブロック:')" "次のブロック: 13:00（あと30分）"
+setup_multi; apply_now 1400; run 1400 status
+check "昼が終わったら次は夜の許可時間帯" "$(line '次の解除:')" "次の解除: 21:00（あと7時間）"
+setup_multi; apply_now 2230; run 2230 status
+check "夜が終わったら次は翌日の昼の許可時間帯" "$(line '次の解除:')" "次の解除: 12:00（あと13時間30分）"
+setup; printf 'ALLOW=2300-0100\n' > "$WORK/etc/config"; apply_now 0030; run 0030 status
+check "日付をまたぐ許可時間帯の中なら、その終わりを表示する" "$(line '次のブロック:')" "次のブロック: 01:00（あと30分）"
+
 setup; printf 'ALLOW_START=0000\nALLOW_END=2400\n' > "$WORK/etc/config"; apply_now 2030; run 2030 status
 check "24 時間許可なら許可中" "$(line '状態:')" "状態: 許可中"
 check "24 時間許可であることを表示する" "$(line '許可時間帯:')" "許可時間帯: 00:00〜24:00（24時間）"
@@ -126,26 +140,44 @@ setup; run 2130 remove; status=$?
 check "ドメインを指定しなければエラー終了する" "$(nonzero $status)" nonzero
 
 echo "set-time"
+allow() { grep '^ALLOW' "$WORK/etc/config" | tr '\n' ' '; }
 setup; run 2130 set-time 20:00 23:00; status=$?
-check "set-time は終了コード 0" "$status" 0
-check "HH:MM で設定ファイルを書き換える" "$(grep '^ALLOW_' "$WORK/etc/config" | tr '\n' ' ')" "ALLOW_START=2000 ALLOW_END=2300 "
+check "今の書き方（開始 終了）も使える" "$status" 0
+check "設定ファイルには ALLOW= の形で書く" "$(allow)" "ALLOW=2000-2300 "
 run 2130 status
 check "変更後の許可時間帯を表示する" "$(line '許可時間帯:')" "許可時間帯: 20:00〜23:00"
 setup; run 2130 set-time 0700 0800
-check "HHMM でも設定できる" "$(grep '^ALLOW_' "$WORK/etc/config" | tr '\n' ' ')" "ALLOW_START=0700 ALLOW_END=0800 "
+check "HHMM でも設定できる" "$(allow)" "ALLOW=0700-0800 "
+setup; run 2130 set-time 12:00-13:00 21:00-22:00; status=$?
+check "範囲を並べて複数の許可時間帯を設定できる" "$(allow)" "ALLOW=1200-1300,2100-2200 "
+check "複数でも終了コード 0" "$status" 0
+check "変更後の許可時間帯をまとめて伝える" "$(grep -c '12:00〜13:00, 21:00〜22:00 に変更しました' "$WORK/stdout")" 1
+setup; run 2130 set-time 1200-1300
+check "範囲は HHMM-HHMM でも書ける" "$(allow)" "ALLOW=1200-1300 "
+setup; run 2130 set-time 21:00-22:00 12:00-14:00 13:00-15:00
+check "重なる時間帯はまとめ、時刻順に並べて保存する" "$(allow)" "ALLOW=1200-1500,2100-2200 "
+setup; run 2130 set-time 12:00-13:00; run 2130 set-time 21:00-22:00
+check "set-time は前の許可時間帯を置き換える（追加ではない）" "$(allow)" "ALLOW=2100-2200 "
 setup; apply_now 2030; run 2030 set-time 20:00 23:00
 check_no_line "許可時間帯に入る変更をすると hosts のブロックをすぐ外す" "$WORK/hosts" "0.0.0.0 www.youtube.com"
-setup; apply_now 2030; run 2030 set-time 00:00 24:00; status=$?
-check "00:00 24:00 で 24 時間許可（制限なし）に戻せる" "$(grep '^ALLOW_' "$WORK/etc/config" | tr '\n' ' ')" "ALLOW_START=0000 ALLOW_END=2400 "
+setup; apply_now 1230; run 1230 set-time 12:00-13:00 21:00-22:00
+check_no_line "複数のうちどれかに入る変更をすると hosts のブロックをすぐ外す" "$WORK/hosts" "0.0.0.0 www.youtube.com"
+setup; apply_now 2030; run 2030 set-time 00:00 24:00
+check "00:00 24:00 で 24 時間許可（制限なし）に戻せる" "$(allow)" "ALLOW=0000-2400 "
 check_no_line "24 時間許可に戻すと hosts のブロックをすぐ外す" "$WORK/hosts" "0.0.0.0 www.youtube.com"
-setup; before=$(snapshot); run 2130 set-time 25:00 23:00; status=$?
-check "不正な時刻はエラー終了する" "$(nonzero $status)" nonzero
-check "不正な時刻のときは何も変えない" "$(snapshot)" "$before"
-setup; before=$(snapshot); run 2130 set-time 21:00 2100; status=$?
-check "開始と終了が同じならエラー終了する" "$(nonzero $status)" nonzero
-check "開始と終了が同じときは何も変えない" "$(snapshot)" "$before"
-setup; run 2130 set-time 21:00; status=$?
-check "引数が足りなければエラー終了する" "$(nonzero $status)" nonzero
+setup; run 2030 set-time 00:00-24:00
+check "00:00-24:00 でも 24 時間許可に戻せる" "$(allow)" "ALLOW=0000-2400 "
+for args in "25:00 23:00" "21:00 2100" "12:00-12:00" "24:00-01:00" "12:00-13:00 25:00-26:00" \
+  "12:00-13:00 21:00" "21:00 22:00 23:00" "12:00~13:00" "21:00"; do
+  setup; before=$(snapshot); run 2130 set-time $args; status=$?
+  if [ "$status" -ne 0 ] && [ "$(snapshot)" = "$before" ] && [ -s "$WORK/stderr" ]; then
+    ok "不正な指定（$args）はエラー終了し、何も変えない"
+  else
+    ng "不正な指定（$args）はエラー終了し、何も変えない" "status=$status $(allow)"
+  fi
+done
+setup; run 2130 set-time; status=$?
+check "引数が無ければエラー終了する" "$(nonzero $status)" nonzero
 
 echo "log"
 setup

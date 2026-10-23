@@ -17,8 +17,7 @@ CURFEW_CLOSE_TABS_LOG="$CURFEW_LOG_DIR/curfew-close-tabs.log"
 CURFEW_BEGIN_MARK='# >>> curfew >>>'
 CURFEW_END_MARK='# <<< curfew <<<'
 # 初期値は 24 時間許可（何もブロックしない）。使う人が curfew set-time で許可時間帯を決める
-CURFEW_DEFAULT_START=0000
-CURFEW_DEFAULT_END=2400
+CURFEW_DEFAULT_WINDOWS=0000-2400
 
 stamp() {
   date '+%Y-%m-%d %H:%M'
@@ -63,20 +62,22 @@ format_time() {
   echo "${1%??}:${1#??}"
 }
 
-# 許可時間帯を config に書く。引数: 開始 終了（HHMM）
+# 許可時間帯は「開始-終了」（HHMM-HHMM）で表し、複数あるときは空白で区切って扱う。
+# 終了が開始より前なら日付をまたぐ（例 2300-0100）
+
+# 許可時間帯を config に書く。引数: 許可時間帯（空白区切り）
 write_config() {
   cat > "$CURFEW_CONFIG" << EOF
 # curfew の設定（curfew set-time で変更できます）
-# 許可時間帯: ALLOW_START から ALLOW_END の直前まで（HHMM）。終了が開始より前なら日付をまたぐ
-ALLOW_START=$1
-ALLOW_END=$2
+# 許可時間帯: 開始-終了（HHMM）をカンマ区切りで並べる。終了が開始より前なら日付をまたぐ
+ALLOW=$(printf '%s' "$1" | tr ' ' ',')
 EOF
 }
 
 # 設定が無ければ初期値（24 時間許可、ブロック対象なし）で作る。既にある設定は変えない
 init_settings() {
   mkdir -p "$CURFEW_ETC"
-  [ -e "$CURFEW_CONFIG" ] || write_config "$CURFEW_DEFAULT_START" "$CURFEW_DEFAULT_END"
+  [ -e "$CURFEW_CONFIG" ] || write_config "$CURFEW_DEFAULT_WINDOWS"
   if [ ! -e "$CURFEW_BLOCKLIST" ]; then
     cat > "$CURFEW_BLOCKLIST" << 'EOF'
 # 許可時間帯以外にブロックするドメイン。1行1ドメイン、# 以降はコメント
@@ -85,23 +86,80 @@ EOF
   fi
 }
 
-# config から許可時間帯を読み、allow_start / allow_end（HHMM）に入れる。
-# 失敗したら理由を curfew_error に入れて失敗する
-load_window() {
+# 「HHMM-HHMM」が許可時間帯として正しければ成功する。開始 24:00 と、開始と終了が同じものは不可
+valid_window() {
+  case $1 in
+    [0-2][0-9][0-5][0-9]-[0-2][0-9][0-5][0-9]) ;;
+    *) return 1 ;;
+  esac
+  _s=$(to_minutes "${1%-*}") && _e=$(to_minutes "${1#*-}") || return 1
+  [ "$_s" -lt 1440 ] && [ "$_s" -ne "$_e" ]
+}
+
+# 許可時間帯の重なりやつながりをまとめ、開始時刻の順に並べて出す。
+# 0:00 をはさんでつながるものは、日付をまたぐ1つの時間帯（例 2300-0100）にして最後に並べる
+merge_windows() {
+  printf '%s\n' $1 | awk -F- '
+    function minutes(t) { return substr(t, 1, 2) * 60 + substr(t, 3, 2) }
+    function hhmm(x) { return sprintf("%02d%02d", int(x / 60), x % 60) }
+    NF == 2 {
+      s = minutes($1)
+      e = minutes($2)
+      # 日付をまたぐものは、0:00 で2つに分けて扱う
+      if (s < e) { n++; S[n] = s; E[n] = e }
+      else {
+        n++; S[n] = s; E[n] = 1440
+        if (e > 0) { n++; S[n] = 0; E[n] = e }
+      }
+    }
+    END {
+      for (i = 2; i <= n; i++) {
+        s = S[i]; e = E[i]
+        for (j = i - 1; j >= 1 && S[j] > s; j--) { S[j + 1] = S[j]; E[j + 1] = E[j] }
+        S[j + 1] = s; E[j + 1] = e
+      }
+      k = 0
+      for (i = 1; i <= n; i++) {
+        if (k > 0 && S[i] <= ME[k]) { if (E[i] > ME[k]) ME[k] = E[i] }
+        else { k++; MS[k] = S[i]; ME[k] = E[i] }
+      }
+      first = 1; last = k; cross = ""
+      if (k >= 2 && MS[1] == 0 && ME[k] == 1440) {
+        cross = hhmm(MS[k]) "-" hhmm(ME[1]); first = 2; last = k - 1
+      }
+      out = ""
+      for (i = first; i <= last; i++) out = out (out == "" ? "" : " ") hhmm(MS[i]) "-" hhmm(ME[i])
+      if (cross != "") out = out (out == "" ? "" : " ") cross
+      print out
+    }'
+}
+
+# config から許可時間帯を読み、まとめた結果を allow_windows に入れる。
+# 以前の形式（ALLOW_START / ALLOW_END）も読む。失敗したら理由を curfew_error に入れて失敗する
+load_windows() {
   if [ ! -r "$CURFEW_CONFIG" ]; then
     curfew_error="設定ファイルを読めません: $CURFEW_CONFIG"
     return 1
   fi
-  allow_start=$(sed -n 's/^ALLOW_START=//p' "$CURFEW_CONFIG" | tail -n 1)
-  allow_end=$(sed -n 's/^ALLOW_END=//p' "$CURFEW_CONFIG" | tail -n 1)
-  if ! to_minutes "$allow_start" > /dev/null; then
-    curfew_error="ALLOW_START が不正です: '$allow_start'（$CURFEW_CONFIG）"
+  if grep -q '^ALLOW=' "$CURFEW_CONFIG"; then
+    _raw=$(sed -n 's/^ALLOW=//p' "$CURFEW_CONFIG" | tail -n 1)
+  else
+    _raw="$(sed -n 's/^ALLOW_START=//p' "$CURFEW_CONFIG" | tail -n 1)-$(sed -n 's/^ALLOW_END=//p' "$CURFEW_CONFIG" | tail -n 1)"
+    [ "$_raw" != "-" ] || _raw=""
+  fi
+  allow_windows=""
+  for _w in $(printf '%s' "$_raw" | tr ',' ' '); do
+    if ! valid_window "$_w"; then
+      curfew_error="許可時間帯が不正です: '$_w'（$CURFEW_CONFIG）"
+      return 1
+    fi
+    allow_windows="$allow_windows $_w"
+  done
+  if [ -z "$allow_windows" ]; then
+    curfew_error="許可時間帯が設定されていません（$CURFEW_CONFIG）"
     return 1
   fi
-  if ! to_minutes "$allow_end" > /dev/null; then
-    curfew_error="ALLOW_END が不正です: '$allow_end'（$CURFEW_CONFIG）"
-    return 1
-  fi
+  allow_windows=$(merge_windows "$allow_windows")
 }
 
 # 引数: 現在 開始 終了（HHMM）。現在が許可時間帯なら成功する。終了が開始より前なら日付をまたぐ
@@ -116,9 +174,26 @@ in_window() {
   fi
 }
 
-# 引数: 開始 終了（HHMM）。許可時間帯が 24 時間（00:00〜24:00）なら成功する
+# 引数: 現在（HHMM） 許可時間帯。どれかの許可時間帯に入っていれば成功する
+in_any_window() {
+  for _w in $2; do
+    in_window "$1" "${_w%-*}" "${_w#*-}" && return 0
+  done
+  return 1
+}
+
+# 引数: まとめ済みの許可時間帯。24 時間（00:00〜24:00）なら成功する
 is_full_day() {
-  [ "$(to_minutes "$1")" -eq 0 ] && [ "$(to_minutes "$2")" -eq 1440 ]
+  [ "$1" = "0000-2400" ]
+}
+
+# 許可時間帯を「12:00〜13:00, 21:00〜22:00」の形で表示する
+format_windows() {
+  _out=""
+  for _w in $1; do
+    _out="${_out:+$_out, }$(format_time "${_w%-*}")〜$(format_time "${_w#*-}")"
+  done
+  echo "$_out"
 }
 
 # blocklist のドメインを1行ずつ出す（# 以降と空行は除く）

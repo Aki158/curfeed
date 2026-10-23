@@ -25,7 +25,7 @@ usage() {
   list                    ブロックするドメインを表示する
   add <ドメイン>...        ブロックするドメインを追加する（URL を貼り付けてもよい）
   remove <ドメイン>...     ブロックするドメインを削除する
-  set-time <開始> <終了>   許可時間帯を変更する（例: curfew set-time 21:00 22:00）
+  set-time <開始-終了>...  許可時間帯をまとめて置き換える（例: curfew set-time 12:00-13:00 21:00-22:00）
   log [件数]               切り替えとタブを閉じた記録を表示する（既定は 20 件）
   uninstall [--yes]        curfew を削除し、hosts のブロックも解除する（--yes で確認を省く）
   help                     この説明を表示する
@@ -78,29 +78,52 @@ require_blocklist() {
   [ -r "$CURFEW_BLOCKLIST" ] || die "blocklist を読めません: $CURFEW_BLOCKLIST"
 }
 
+# 次に切り替わる時刻（HHMM）を出す。引数: 現在 許可時間帯 許可中なら 1
+# 許可中なら今いる許可時間帯の終わり、ブロック中なら次に始まる許可時間帯の始まり
+next_switch() {
+  _best=""
+  _best_left=1441
+  for _w in $2; do
+    if [ "$3" -eq 1 ]; then
+      if in_window "$1" "${_w%-*}" "${_w#*-}"; then
+        echo "${_w#*-}"
+        return 0
+      fi
+    else
+      _left=$((($(to_minutes "${_w%-*}") - $(to_minutes "$1") + 1440) % 1440))
+      if [ "$_left" -lt "$_best_left" ]; then
+        _best=${_w%-*}
+        _best_left=$_left
+      fi
+    fi
+  done
+  echo "$_best"
+}
+
 cmd_status() {
   now=$(curfew_now)
   to_minutes "$now" > /dev/null || die "現在時刻が不正です: $now"
-  load_window || die "$curfew_error"
+  load_windows || die "$curfew_error"
   require_blocklist
-  if in_window "$now" "$allow_start" "$allow_end"; then
+  if in_any_window "$now" "$allow_windows"; then
     state=許可中
     next_label=次のブロック
-    next=$allow_end
+    allowed=1
     should_block=0
   else
     state=ブロック中
     next_label=次の解除
-    next=$allow_start
+    allowed=0
     should_block=1
   fi
-  window="$(format_time "$allow_start")〜$(format_time "$allow_end")"
-  if is_full_day "$allow_start" "$allow_end"; then
+  window=$(format_windows "$allow_windows")
+  if is_full_day "$allow_windows"; then
     full_day=1
     window="$window（24時間）"
     next_line="$next_label: なし"
   else
     full_day=0
+    next=$(next_switch "$now" "$allow_windows" "$allowed")
     left=$((($(to_minutes "$next") - $(to_minutes "$now") + 1440) % 1440))
     next_line="$next_label: $(format_time "$next")（あと$(format_duration "$left")）"
   fi
@@ -112,7 +135,7 @@ cmd_status() {
   echo "$next_line"
   echo "ブロック対象: $count ドメイン"
   if [ "$full_day" -eq 1 ]; then
-    echo "※ 許可時間帯が24時間なので、何もブロックしません。curfew set-time 21:00 22:00 のように決めてください"
+    echo "※ 許可時間帯が24時間なので、何もブロックしません。curfew set-time 21:00-22:00 のように決めてください"
   fi
   if [ "$count" -eq 0 ]; then
     echo "※ ブロックするドメインがありません。curfew add youtube.com のように登録してください"
@@ -202,17 +225,40 @@ cmd_remove() {
   echo "削除しました:$removed"
 }
 
+# 「21:00-22:00」「2100-2200」を「2100-2200」にそろえる。不正な値なら失敗する
+parse_window() {
+  case $1 in
+    *-*-* | -* | *-) return 1 ;;
+    *-*) ;;
+    *) return 1 ;;
+  esac
+  _ps=$(normalize_time "${1%-*}") && _pe=$(normalize_time "${1#*-}") || return 1
+  valid_window "$_ps-$_pe" || return 1
+  echo "$_ps-$_pe"
+}
+
 cmd_set_time() {
-  [ $# -eq 2 ] || die "開始と終了を指定してください（例: curfew set-time 21:00 22:00）"
-  start=$(normalize_time "$1") || die "時刻が不正です: $1（HH:MM か HHMM で指定してください）"
-  end=$(normalize_time "$2") || die "時刻が不正です: $2（HH:MM か HHMM で指定してください）"
-  [ "$start" != 2400 ] || die "開始に 24:00 は使えません（00:00 を指定してください）"
-  [ "$(to_minutes "$start")" -ne "$(to_minutes "$end")" ] || die "開始と終了が同じです: $1 $2"
+  [ $# -gt 0 ] || die "許可時間帯を指定してください（例: curfew set-time 12:00-13:00 21:00-22:00）"
+  # 以前の書き方（curfew set-time 21:00 22:00）は、1つの許可時間帯として扱う
+  case "$*" in
+    *-*) ;;
+    *)
+      [ $# -eq 2 ] || die "許可時間帯は 21:00-22:00 のように指定してください（複数あれば空白で区切って並べます）"
+      set -- "$1-$2"
+      ;;
+  esac
+  windows=""
+  for arg in "$@"; do
+    w=$(parse_window "$arg") \
+      || die "許可時間帯が不正です: $arg（21:00-22:00 のように指定してください。開始と終了は別の時刻にし、開始に 24:00 は使えません）"
+    windows="$windows $w"
+  done
+  windows=$(merge_windows "$windows")
   require_write set-time "$@"
 
-  write_config "$start" "$end"
+  write_config "$windows"
   apply_now
-  echo "許可時間帯を $(format_time "$start")〜$(format_time "$end") に変更しました"
+  echo "許可時間帯を $(format_windows "$windows") に変更しました"
 }
 
 cmd_log() {

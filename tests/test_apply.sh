@@ -51,6 +51,14 @@ setup 2300 0100; run 2330; assert_unblocked "23:30 は許可"
 setup 2300 0100; run 0030; assert_unblocked "00:30 は許可"
 setup 2300 0100; run 0100; assert_blocked "01:00 ちょうどでブロック"
 
+echo "複数の許可時間帯（12:00-13:00 と 21:00-22:00）"
+setup_multi() { setup; printf 'ALLOW=1200-1300,2100-2200\n' > "$WORK/etc/config"; }
+setup_multi; run 1159; assert_blocked "11:59 はブロック"
+setup_multi; run 1230; assert_unblocked "12:30 は昼の許可時間帯"
+setup_multi; run 1300; assert_blocked "13:00 ちょうどでブロック"
+setup_multi; run 2130; assert_unblocked "21:30 は夜の許可時間帯"
+setup_multi; run 2200; assert_blocked "22:00 ちょうどでブロック"
+
 echo "24 時間許可（00:00-24:00）"
 setup 0000 2400; run 0000; assert_unblocked "00:00 もブロックしない"
 setup 0000 2400; run 1200; assert_unblocked "12:00 もブロックしない"

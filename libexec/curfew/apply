@@ -15,8 +15,8 @@ die() {
 
 now=$(curfew_now)
 to_minutes "$now" > /dev/null || die "現在時刻が不正です: $now"
-load_window || die "$curfew_error"
-in_window "$now" "$allow_start" "$allow_end" && allowed=1 || allowed=0
+load_windows || die "$curfew_error"
+in_any_window "$now" "$allow_windows" && allowed=1 || allowed=0
 
 [ -r "$CURFEW_BLOCKLIST" ] || die "blocklist を読めません: $CURFEW_BLOCKLIST"
 domains=$(blocklist_domains)

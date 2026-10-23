@@ -62,9 +62,9 @@ echo "インストールしました"
 echo "  設定:   $ETC/（curfew add / remove / set-time で変更できます）"
 echo "  初めての場合は、ブロックするサイトと許可時間帯を決めてください:"
 echo "    curfew add youtube.com www.youtube.com"
-echo "    curfew set-time 21:00 22:00"
+echo "    curfew set-time 21:00-22:00"
 echo "  ログ:   curfew log"
-echo "  削除:   curfew uninstall"
+echo "  アンインストール:   curfew uninstall"
 echo "Chrome の操作許可を求められたら「OK」を押してください"
 echo
 # 最初の切り替えが終わってから状態を表示する
