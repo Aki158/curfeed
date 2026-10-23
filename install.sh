@@ -1,37 +1,37 @@
 #!/bin/sh
-# curfew をインストールして launchd に登録する。実行: sudo ./install.sh
+# curfeed をインストールして launchd に登録する。実行: sudo ./install.sh
 set -eu
 
 [ "$(id -u)" -eq 0 ] || { echo "sudo ./install.sh で実行してください" >&2; exit 1; }
 cd "$(dirname "$0")"
 
 PREFIX=/usr/local
-ETC=$PREFIX/etc/curfew
-LIBEXEC=$PREFIX/libexec/curfew
-DAEMON_LABEL=local.curfew
+ETC=$PREFIX/etc/curfeed
+LIBEXEC=$PREFIX/libexec/curfeed
+DAEMON_LABEL=local.curfeed
 DAEMON_PLIST=/Library/LaunchDaemons/$DAEMON_LABEL.plist
-AGENT_LABEL=local.curfew.close-tabs
+AGENT_LABEL=local.curfeed.close-tabs
 AGENT_PLIST=/Library/LaunchAgents/$AGENT_LABEL.plist
-APPLY_LOG=/var/log/curfew.log
-AGENT_LOG=/var/log/curfew-close-tabs.log
+APPLY_LOG=/var/log/curfeed.log
+AGENT_LOG=/var/log/curfeed-close-tabs.log
 console_uid=$(stat -f %u /dev/console)
 
 # 初回だけ元の hosts を退避する
-[ -e /etc/hosts.before-curfew ] || cp -p /etc/hosts /etc/hosts.before-curfew
+[ -e /etc/hosts.before-curfeed ] || cp -p /etc/hosts /etc/hosts.before-curfeed
 
 mkdir -p "$PREFIX/bin" "$LIBEXEC"
-install -m 755 -o root -g wheel bin/curfew "$PREFIX/bin/curfew"
-install -m 644 -o root -g wheel libexec/curfew/lib.sh "$LIBEXEC/lib.sh"
-install -m 755 -o root -g wheel libexec/curfew/apply "$LIBEXEC/apply"
-install -m 755 -o root -g wheel libexec/curfew/close-tabs "$LIBEXEC/close-tabs"
+install -m 755 -o root -g wheel bin/curfeed "$PREFIX/bin/curfeed"
+install -m 644 -o root -g wheel libexec/curfeed/lib.sh "$LIBEXEC/lib.sh"
+install -m 755 -o root -g wheel libexec/curfeed/apply "$LIBEXEC/apply"
+install -m 755 -o root -g wheel libexec/curfeed/close-tabs "$LIBEXEC/close-tabs"
 install -m 755 -o root -g wheel uninstall.sh "$LIBEXEC/uninstall.sh"
 
 # 設定が無ければ初期値（24 時間許可、ブロック対象なし）で作る。
 # 再インストール時は、編集済みの設定をそのまま使う
-CURFEW_ETC=$ETC
+CURFEED_ETC=$ETC
 . "$LIBEXEC/lib.sh"
 init_settings
-chmod 644 "$CURFEW_CONFIG" "$CURFEW_BLOCKLIST"
+chmod 644 "$CURFEED_CONFIG" "$CURFEED_BLOCKLIST"
 
 install -m 644 -o root -g wheel "launchd/$DAEMON_LABEL.plist" "$DAEMON_PLIST"
 install -m 644 -o root -g wheel "launchd/$AGENT_LABEL.plist" "$AGENT_PLIST"
@@ -59,14 +59,14 @@ fi
 
 echo
 echo "インストールしました"
-echo "  設定:   $ETC/（curfew add / remove / set-time で変更できます）"
+echo "  設定:   $ETC/（curfeed add / remove / set-time で変更できます）"
 echo "  初めての場合は、ブロックするサイトと許可時間帯を決めてください:"
-echo "    curfew add youtube.com www.youtube.com"
-echo "    curfew set-time 21:00-22:00"
-echo "  ログ:   curfew log"
-echo "  アンインストール:   curfew uninstall"
+echo "    curfeed add youtube.com www.youtube.com"
+echo "    curfeed set-time 21:00-22:00"
+echo "  ログ:   curfeed log"
+echo "  アンインストール:   curfeed uninstall"
 echo "Chrome の操作許可を求められたら「OK」を押してください"
 echo
 # 最初の切り替えが終わってから状態を表示する
 sleep 2
-"$PREFIX/bin/curfew" status
+"$PREFIX/bin/curfeed" status

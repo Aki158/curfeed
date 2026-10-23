@@ -1,5 +1,5 @@
 #!/bin/sh
-# libexec/curfew/close-tabs のテスト。Chrome の操作（pgrep / pkill / osascript）だけを差し替え、
+# libexec/curfeed/close-tabs のテスト。Chrome の操作（pgrep / pkill / osascript）だけを差し替え、
 # 一時ディレクトリの hosts / 状態の記録を使う。実際の Chrome や /etc/hosts には触れない
 
 . "$(dirname "$0")/helpers.sh"
@@ -35,14 +35,14 @@ esac
 EOF
 chmod +x "$WORK/bin/pgrep" "$WORK/bin/pkill" "$WORK/bin/osascript"
 
-BLOCK_SECTION='# >>> curfew >>>
+BLOCK_SECTION='# >>> curfeed >>>
 0.0.0.0 www.youtube.com
 :: www.youtube.com
 0.0.0.0 youtube.com
 :: youtube.com
 0.0.0.0 x.com
 :: x.com
-# <<< curfew <<<
+# <<< curfeed <<<
 '
 
 # 引数: blocked|allowed。前回の状態は「ブロック中」から始める（ブロックが続いている状態）
@@ -63,9 +63,9 @@ setup() {
 add_tab() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$WORK/stub/tabs"; }
 
 run() {
-  CURFEW_HOSTS="$WORK/hosts" CURFEW_DATA="$WORK/data" \
+  CURFEED_HOSTS="$WORK/hosts" CURFEED_DATA="$WORK/data" \
     STUB_DIR="$WORK/stub" PATH="$WORK/bin:$PATH" \
-    sh "$ROOT/libexec/curfew/close-tabs" > "$WORK/stdout" 2> "$WORK/stderr"
+    sh "$ROOT/libexec/curfeed/close-tabs" > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
 closed() { cat "$WORK/stub/closed" 2>/dev/null; }
@@ -132,7 +132,7 @@ check "失敗理由（osascript のエラー）を stderr に出す" "$(grep -c 
 setup blocked; rm "$WORK/hosts"; run; status=$?
 check "hosts を読めなければ終了コードが 0 以外" "$([ "$status" -ne 0 ] && echo nonzero)" nonzero
 check "hosts を読めなければ Chrome に問い合わせない" "$(calls)" 0
-if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] curfew close-tabs:' "$WORK/stderr"; then
+if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] curfeed close-tabs:' "$WORK/stderr"; then
   ok "エラー行は日時から始まる"
 else
   ng "エラー行は日時から始まる" "$(cat "$WORK/stderr")"

@@ -1,35 +1,35 @@
-# curfew の各スクリプトで共有する設定と関数。sh で読み込んで使う
+# curfeed の各スクリプトで共有する設定と関数。sh で読み込んで使う
 #
 # 環境変数で上書きできる値:
-#   CURFEW_ETC      設定の置き場所（config / blocklist）
-#   CURFEW_HOSTS    書き換える hosts ファイル
-#   CURFEW_LOG_DIR  ログの置き場所
-#   CURFEW_DATA     タブを閉じる側が前回の状態を記録する場所
-#   CURFEW_NOW      現在時刻 HHMM
+#   CURFEED_ETC      設定の置き場所（config / blocklist）
+#   CURFEED_HOSTS    書き換える hosts ファイル
+#   CURFEED_LOG_DIR  ログの置き場所
+#   CURFEED_DATA     タブを閉じる側が前回の状態を記録する場所
+#   CURFEED_NOW      現在時刻 HHMM
 
-CURFEW_ETC="${CURFEW_ETC:-/usr/local/etc/curfew}"
-CURFEW_HOSTS="${CURFEW_HOSTS:-/etc/hosts}"
-CURFEW_LOG_DIR="${CURFEW_LOG_DIR:-/var/log}"
-CURFEW_CONFIG="$CURFEW_ETC/config"
-CURFEW_BLOCKLIST="$CURFEW_ETC/blocklist"
-CURFEW_APPLY_LOG="$CURFEW_LOG_DIR/curfew.log"
-CURFEW_CLOSE_TABS_LOG="$CURFEW_LOG_DIR/curfew-close-tabs.log"
-CURFEW_BEGIN_MARK='# >>> curfew >>>'
-CURFEW_END_MARK='# <<< curfew <<<'
-# 初期値は 24 時間許可（何もブロックしない）。使う人が curfew set-time で許可時間帯を決める
-CURFEW_DEFAULT_WINDOWS=0000-2400
+CURFEED_ETC="${CURFEED_ETC:-/usr/local/etc/curfeed}"
+CURFEED_HOSTS="${CURFEED_HOSTS:-/etc/hosts}"
+CURFEED_LOG_DIR="${CURFEED_LOG_DIR:-/var/log}"
+CURFEED_CONFIG="$CURFEED_ETC/config"
+CURFEED_BLOCKLIST="$CURFEED_ETC/blocklist"
+CURFEED_APPLY_LOG="$CURFEED_LOG_DIR/curfeed.log"
+CURFEED_CLOSE_TABS_LOG="$CURFEED_LOG_DIR/curfeed-close-tabs.log"
+CURFEED_BEGIN_MARK='# >>> curfeed >>>'
+CURFEED_END_MARK='# <<< curfeed <<<'
+# 初期値は 24 時間許可（何もブロックしない）。使う人が curfeed set-time で許可時間帯を決める
+CURFEED_DEFAULT_WINDOWS=0000-2400
 
 stamp() {
   date '+%Y-%m-%d %H:%M'
 }
 
-curfew_now() {
-  echo "${CURFEW_NOW:-$(date +%H%M)}"
+curfeed_now() {
+  echo "${CURFEED_NOW:-$(date +%H%M)}"
 }
 
 # root の LaunchDaemon には HOME が無いので、使うときにだけ決める
-curfew_data_dir() {
-  echo "${CURFEW_DATA:-$HOME/Library/Application Support/curfew}"
+curfeed_data_dir() {
+  echo "${CURFEED_DATA:-$HOME/Library/Application Support/curfeed}"
 }
 
 # HHMM を 0:00 からの分に変換する。不正な値なら失敗する
@@ -67,8 +67,8 @@ format_time() {
 
 # 許可時間帯を config に書く。引数: 許可時間帯（空白区切り）
 write_config() {
-  cat > "$CURFEW_CONFIG" << EOF
-# curfew の設定（curfew set-time で変更できます）
+  cat > "$CURFEED_CONFIG" << EOF
+# curfeed の設定（curfeed set-time で変更できます）
 # 許可時間帯: 開始-終了（HHMM）をカンマ区切りで並べる。終了が開始より前なら日付をまたぐ
 ALLOW=$(printf '%s' "$1" | tr ' ' ',')
 EOF
@@ -76,12 +76,12 @@ EOF
 
 # 設定が無ければ初期値（24 時間許可、ブロック対象なし）で作る。既にある設定は変えない
 init_settings() {
-  mkdir -p "$CURFEW_ETC"
-  [ -e "$CURFEW_CONFIG" ] || write_config "$CURFEW_DEFAULT_WINDOWS"
-  if [ ! -e "$CURFEW_BLOCKLIST" ]; then
-    cat > "$CURFEW_BLOCKLIST" << 'EOF'
+  mkdir -p "$CURFEED_ETC"
+  [ -e "$CURFEED_CONFIG" ] || write_config "$CURFEED_DEFAULT_WINDOWS"
+  if [ ! -e "$CURFEED_BLOCKLIST" ]; then
+    cat > "$CURFEED_BLOCKLIST" << 'EOF'
 # 許可時間帯以外にブロックするドメイン。1行1ドメイン、# 以降はコメント
-# curfew add youtube.com のように登録します（curfew remove で削除）。www. の有無は別のドメインとして扱います
+# curfeed add youtube.com のように登録します（curfeed remove で削除）。www. の有無は別のドメインとして扱います
 EOF
   fi
 }
@@ -135,28 +135,28 @@ merge_windows() {
 }
 
 # config から許可時間帯を読み、まとめた結果を allow_windows に入れる。
-# 以前の形式（ALLOW_START / ALLOW_END）も読む。失敗したら理由を curfew_error に入れて失敗する
+# 以前の形式（ALLOW_START / ALLOW_END）も読む。失敗したら理由を curfeed_error に入れて失敗する
 load_windows() {
-  if [ ! -r "$CURFEW_CONFIG" ]; then
-    curfew_error="設定ファイルを読めません: $CURFEW_CONFIG"
+  if [ ! -r "$CURFEED_CONFIG" ]; then
+    curfeed_error="設定ファイルを読めません: $CURFEED_CONFIG"
     return 1
   fi
-  if grep -q '^ALLOW=' "$CURFEW_CONFIG"; then
-    _raw=$(sed -n 's/^ALLOW=//p' "$CURFEW_CONFIG" | tail -n 1)
+  if grep -q '^ALLOW=' "$CURFEED_CONFIG"; then
+    _raw=$(sed -n 's/^ALLOW=//p' "$CURFEED_CONFIG" | tail -n 1)
   else
-    _raw="$(sed -n 's/^ALLOW_START=//p' "$CURFEW_CONFIG" | tail -n 1)-$(sed -n 's/^ALLOW_END=//p' "$CURFEW_CONFIG" | tail -n 1)"
+    _raw="$(sed -n 's/^ALLOW_START=//p' "$CURFEED_CONFIG" | tail -n 1)-$(sed -n 's/^ALLOW_END=//p' "$CURFEED_CONFIG" | tail -n 1)"
     [ "$_raw" != "-" ] || _raw=""
   fi
   allow_windows=""
   for _w in $(printf '%s' "$_raw" | tr ',' ' '); do
     if ! valid_window "$_w"; then
-      curfew_error="許可時間帯が不正です: '$_w'（$CURFEW_CONFIG）"
+      curfeed_error="許可時間帯が不正です: '$_w'（$CURFEED_CONFIG）"
       return 1
     fi
     allow_windows="$allow_windows $_w"
   done
   if [ -z "$allow_windows" ]; then
-    curfew_error="許可時間帯が設定されていません（$CURFEW_CONFIG）"
+    curfeed_error="許可時間帯が設定されていません（$CURFEED_CONFIG）"
     return 1
   fi
   allow_windows=$(merge_windows "$allow_windows")
@@ -198,7 +198,7 @@ format_windows() {
 
 # blocklist のドメインを1行ずつ出す（# 以降と空行は除く）
 blocklist_domains() {
-  awk '{ sub(/#.*/, ""); if (NF) print $1 }' "$CURFEW_BLOCKLIST"
+  awk '{ sub(/#.*/, ""); if (NF) print $1 }' "$CURFEED_BLOCKLIST"
 }
 
 valid_domain() {
@@ -211,9 +211,9 @@ valid_domain() {
 
 # hosts のブロック区間に書かれたホストを出す。区間が無ければ何も出さない
 blocked_hosts() {
-  awk -v b="$CURFEW_BEGIN_MARK" -v e="$CURFEW_END_MARK" '
+  awk -v b="$CURFEED_BEGIN_MARK" -v e="$CURFEED_END_MARK" '
     $0 == b { inside = 1; next }
     $0 == e { inside = 0; next }
     inside && $1 == "0.0.0.0" { print tolower($2) }
-  ' "$CURFEW_HOSTS"
+  ' "$CURFEED_HOSTS"
 }

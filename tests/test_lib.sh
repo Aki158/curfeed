@@ -1,12 +1,12 @@
 #!/bin/sh
-# libexec/curfew/lib.sh のうち、設定の初期化（init_settings）と許可時間帯の扱い
+# libexec/curfeed/lib.sh のうち、設定の初期化（init_settings）と許可時間帯の扱い
 # （load_windows / merge_windows）のテスト。一時ディレクトリを設定の置き場所にして読み込む
 
 . "$(dirname "$0")/helpers.sh"
 
 # 引数: 実行するシェルのコード。lib.sh を読み込んだうえで実行する
 in_lib() {
-  CURFEW_ETC="$WORK/etc" sh -c ". \"$ROOT/libexec/curfew/lib.sh\"; $1" > "$WORK/stdout" 2> "$WORK/stderr"
+  CURFEED_ETC="$WORK/etc" sh -c ". \"$ROOT/libexec/curfeed/lib.sh\"; $1" > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
 # 引数: テスト名 入力（"HHMM-HHMM" を空白区切り） 期待する結果
@@ -19,7 +19,7 @@ check_merge() {
 load_config() {
   mkdir -p "$WORK/etc"
   printf '%s\n' "$1" > "$WORK/etc/config"
-  in_lib 'load_windows || { echo "$curfew_error" >&2; exit 1; }; echo "$allow_windows"'
+  in_lib 'load_windows || { echo "$curfeed_error" >&2; exit 1; }; echo "$allow_windows"'
 }
 
 echo "init_settings（設定が無いとき）"
@@ -30,7 +30,7 @@ in_lib 'load_windows && echo "$allow_windows"'
 check "許可時間帯の初期値は 24 時間（00:00〜24:00）" "$(cat "$WORK/stdout")" "0000-2400"
 in_lib 'blocklist_domains | wc -l | tr -d " "'
 check "ブロック対象は空で作る" "$(cat "$WORK/stdout")" 0
-check "blocklist に登録方法の案内を書く" "$(grep -c 'curfew add' "$WORK/etc/blocklist")" 1
+check "blocklist に登録方法の案内を書く" "$(grep -c 'curfeed add' "$WORK/etc/blocklist")" 1
 
 echo "init_settings（設定が既にあるとき）"
 mkdir -p "$WORK/etc"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# bin/curfew のテスト。一時ディレクトリの設定 / hosts / ログを使い、実際の環境には触れない。
+# bin/curfeed のテスト。一時ディレクトリの設定 / hosts / ログを使い、実際の環境には触れない。
 # 管理者権限への切り替えだけは sudo を差し替えて確認する
 
 . "$(dirname "$0")/helpers.sh"
@@ -19,19 +19,19 @@ setup() {
   printf 'ALLOW_START=2100\nALLOW_END=2200\n' > "$WORK/etc/config"
 }
 
-# 引数: 現在時刻 HHMM, curfew の引数...。終了コードを返す
+# 引数: 現在時刻 HHMM, curfeed の引数...。終了コードを返す
 run() {
   now=$1
   shift
-  CURFEW_ETC="$WORK/etc" CURFEW_HOSTS="$WORK/hosts" CURFEW_LOG_DIR="$WORK/log" \
-    CURFEW_NOW="$now" STUB_DIR="$WORK/stub" PATH="$WORK/bin:$PATH" \
-    sh "$ROOT/bin/curfew" "$@" > "$WORK/stdout" 2> "$WORK/stderr"
+  CURFEED_ETC="$WORK/etc" CURFEED_HOSTS="$WORK/hosts" CURFEED_LOG_DIR="$WORK/log" \
+    CURFEED_NOW="$now" STUB_DIR="$WORK/stub" PATH="$WORK/bin:$PATH" \
+    sh "$ROOT/bin/curfeed" "$@" > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
 # hosts を今の時刻の状態にしておく
 apply_now() {
-  CURFEW_ETC="$WORK/etc" CURFEW_HOSTS="$WORK/hosts" CURFEW_NOW="$1" \
-    sh "$ROOT/libexec/curfew/apply" > /dev/null 2>&1
+  CURFEED_ETC="$WORK/etc" CURFEED_HOSTS="$WORK/hosts" CURFEED_NOW="$1" \
+    sh "$ROOT/libexec/curfeed/apply" > /dev/null 2>&1
 }
 
 out() { cat "$WORK/stdout"; }
@@ -61,7 +61,7 @@ setup; rm "$WORK/etc/config"; run 2000 status; status=$?
 check "設定ファイルが無ければエラー終了する" "$(nonzero $status)" nonzero
 setup; printf '# コメントだけ\n' > "$WORK/etc/blocklist"; run 2000 status
 check "ブロック対象が空なら 0 ドメインと表示する" "$(line 'ブロック対象:')" "ブロック対象: 0 ドメイン"
-check "ブロック対象が空なら登録方法を案内する" "$(grep -c 'curfew add' "$WORK/stdout")" 1
+check "ブロック対象が空なら登録方法を案内する" "$(grep -c 'curfeed add' "$WORK/stdout")" 1
 check "ブロック対象が空なら hosts の反映待ちの注意は出さない" "$(grep -c '反映' "$WORK/stdout")" 0
 
 setup_multi() { setup; printf 'ALLOW=1200-1300,2100-2200\n' > "$WORK/etc/config"; }
@@ -82,17 +82,17 @@ setup; printf 'ALLOW_START=0000\nALLOW_END=2400\n' > "$WORK/etc/config"; apply_n
 check "24 時間許可なら許可中" "$(line '状態:')" "状態: 許可中"
 check "24 時間許可であることを表示する" "$(line '許可時間帯:')" "許可時間帯: 00:00〜24:00（24時間）"
 check "24 時間許可なら次のブロックは無い" "$(line '次のブロック:')" "次のブロック: なし"
-check "24 時間許可なら set-time で決めるよう案内する" "$(grep -c 'curfew set-time' "$WORK/stdout")" 1
+check "24 時間許可なら set-time で決めるよう案内する" "$(grep -c 'curfeed set-time' "$WORK/stdout")" 1
 check "24 時間許可なら hosts の反映待ちの注意は出さない" "$(grep -c '反映' "$WORK/stdout")" 0
 setup; apply_now 2000; run 2000 status
-check "24 時間でなければ set-time の案内は出さない" "$(grep -c 'curfew set-time' "$WORK/stdout")" 0
+check "24 時間でなければ set-time の案内は出さない" "$(grep -c 'curfeed set-time' "$WORK/stdout")" 0
 
 echo "list"
 setup; run 2000 list
 check "ドメインだけを1行ずつ表示する" "$(out)" "www.youtube.com
 x.com"
 setup; printf '# コメントだけ\n' > "$WORK/etc/blocklist"; run 2000 list; status=$?
-check "空なら登録されていないことと登録方法を伝える" "$(out)" "ブロックするドメインは登録されていません（curfew add youtube.com のように登録できます）"
+check "空なら登録されていないことと登録方法を伝える" "$(out)" "ブロックするドメインは登録されていません（curfeed add youtube.com のように登録できます）"
 check "空でも終了コード 0" "$status" 0
 
 echo "add"
@@ -117,9 +117,9 @@ setup; run 2130 add; status=$?
 check "ドメインを指定しなければエラー終了する" "$(nonzero $status)" nonzero
 setup; apply_now 2000; run 2000 add tiktok.com
 check_has_line "ブロック中に追加すると hosts にすぐ反映する" "$WORK/hosts" "0.0.0.0 tiktok.com"
-check "反映した記録をログに残す" "$(grep -c 'ブロックしました' "$WORK/log/curfew.log")" 1
+check "反映した記録をログに残す" "$(grep -c 'ブロックしました' "$WORK/log/curfeed.log")" 1
 setup; chmod 444 "$WORK/etc/blocklist"; before=$(snapshot); run 2130 add tiktok.com
-check "書き込めなければ sudo で実行し直す" "$(sed 's/^.*bin\/curfew //' "$WORK/stub/sudo" 2>/dev/null)" "add tiktok.com"
+check "書き込めなければ sudo で実行し直す" "$(sed 's/^.*bin\/curfeed //' "$WORK/stub/sudo" 2>/dev/null)" "add tiktok.com"
 check "sudo で実行し直す前に何も変えない" "$(snapshot)" "$before"
 
 echo "remove"
@@ -181,8 +181,8 @@ check "引数が無ければエラー終了する" "$(nonzero $status)" nonzero
 
 echo "log"
 setup
-printf '%s\n' '2026-10-23 17:57 ブロックしました' '2026-10-23 22:00 ブロックしました' > "$WORK/log/curfew.log"
-printf '%s\n' '2026-10-23 18:16 タブを 8 件閉じました' '2026-10-23 22:00 タブを 2 件閉じました' > "$WORK/log/curfew-close-tabs.log"
+printf '%s\n' '2026-10-23 17:57 ブロックしました' '2026-10-23 22:00 ブロックしました' > "$WORK/log/curfeed.log"
+printf '%s\n' '2026-10-23 18:16 タブを 8 件閉じました' '2026-10-23 22:00 タブを 2 件閉じました' > "$WORK/log/curfeed-close-tabs.log"
 run 2130 log
 check "2つのログを時刻順にまとめる（同じ時刻は切り替えが先）" "$(out)" "2026-10-23 17:57 ブロックしました
 2026-10-23 18:16 タブを 8 件閉じました
@@ -196,22 +196,22 @@ setup; run 2130 log
 check "ログが無ければその旨を表示する" "$(out)" "記録はありません"
 
 echo "uninstall"
-# インストール後と同じ配置（bin/ と libexec/curfew/ に uninstall.sh がある）を一時ディレクトリに作る。
+# インストール後と同じ配置（bin/ と libexec/curfeed/ に uninstall.sh がある）を一時ディレクトリに作る。
 # uninstall.sh は呼ばれたことだけを記録する差し替え版にする
 setup_installed() {
   setup
   rm -rf "$WORK/prefix"
   mkdir -p "$WORK/prefix"
   cp -R "$ROOT/bin" "$ROOT/libexec" "$WORK/prefix/"
-  printf '#!/bin/sh\necho ran >> "$STUB_DIR/uninstall"\n' > "$WORK/prefix/libexec/curfew/uninstall.sh"
+  printf '#!/bin/sh\necho ran >> "$STUB_DIR/uninstall"\n' > "$WORK/prefix/libexec/curfeed/uninstall.sh"
 }
-# 引数: curfew の引数...。標準入力は呼び出し側から渡す
+# 引数: curfeed の引数...。標準入力は呼び出し側から渡す
 run_installed() {
-  CURFEW_ETC="$WORK/etc" CURFEW_HOSTS="$WORK/hosts" CURFEW_LOG_DIR="$WORK/log" \
+  CURFEED_ETC="$WORK/etc" CURFEED_HOSTS="$WORK/hosts" CURFEED_LOG_DIR="$WORK/log" \
     STUB_DIR="$WORK/stub" PATH="$WORK/bin:$PATH" \
-    sh "$WORK/prefix/bin/curfew" "$@" > "$WORK/stdout" 2> "$WORK/stderr"
+    sh "$WORK/prefix/bin/curfeed" "$@" > "$WORK/stdout" 2> "$WORK/stderr"
 }
-sudo_args() { sed 's/^.*bin\/curfew //' "$WORK/stub/sudo" 2>/dev/null; }
+sudo_args() { sed 's/^.*bin\/curfeed //' "$WORK/stub/sudo" 2>/dev/null; }
 uninstall_runs() { if [ -e "$WORK/stub/uninstall" ]; then wc -l < "$WORK/stub/uninstall" | tr -d ' '; else echo 0; fi; }
 
 setup_installed; printf 'n\n' | run_installed uninstall; status=$?
@@ -226,8 +226,8 @@ setup_installed; run_installed uninstall --yes < /dev/null
 check "--yes なら確認せずに sudo で実行し直す" "$(sudo_args)" "uninstall --yes"
 setup_installed; mkdir -p "$WORK/rootbin"
 printf '#!/bin/sh\necho 0\n' > "$WORK/rootbin/id"; chmod +x "$WORK/rootbin/id"
-CURFEW_ETC="$WORK/etc" STUB_DIR="$WORK/stub" PATH="$WORK/rootbin:$WORK/bin:$PATH" \
-  sh "$WORK/prefix/bin/curfew" uninstall --yes < /dev/null > "$WORK/stdout" 2> "$WORK/stderr"
+CURFEED_ETC="$WORK/etc" STUB_DIR="$WORK/stub" PATH="$WORK/rootbin:$WORK/bin:$PATH" \
+  sh "$WORK/prefix/bin/curfeed" uninstall --yes < /dev/null > "$WORK/stdout" 2> "$WORK/stderr"
 check "root なら uninstall.sh を実行する" "$(uninstall_runs)" 1
 check "root なら sudo は使わない" "$(sudo_args)" ""
 setup; run 2130 uninstall --yes < /dev/null; status=$?
@@ -240,7 +240,7 @@ check "不明なオプションのときは sudo も uninstall.sh も呼ばな�
 echo "その他"
 setup; run 2130 help; status=$?
 check "help は終了コード 0" "$status" 0
-check "help で使い方を表示する" "$(grep -c '^使い方: curfew' "$WORK/stdout")" 1
+check "help で使い方を表示する" "$(grep -c '^使い方: curfeed' "$WORK/stdout")" 1
 check "help に uninstall を載せる" "$(grep -c '^  uninstall' "$WORK/stdout")" 1
 setup; run 2130 unknown-command; status=$?
 check "不明なコマンドは終了コード 2" "$status" 2

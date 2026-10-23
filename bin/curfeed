@@ -1,33 +1,33 @@
 #!/bin/sh
-# curfew: 決めた時間帯以外は、SNS などのサイトを見られなくする。使い方は `curfew help`
+# curfeed: 決めた時間帯以外は、SNS などのサイトを見られなくする。使い方は `curfeed help`
 
 set -eu
 set -f
 
-LIBEXEC=$(cd "$(dirname "$0")/../libexec/curfew" 2> /dev/null && pwd) || {
-  echo "curfew: libexec/curfew が見つかりません。install.sh でインストールし直してください" >&2
+LIBEXEC=$(cd "$(dirname "$0")/../libexec/curfeed" 2> /dev/null && pwd) || {
+  echo "curfeed: libexec/curfeed が見つかりません。install.sh でインストールし直してください" >&2
   exit 1
 }
 . "$LIBEXEC/lib.sh"
 
-DAEMON_LABEL=local.curfew
+DAEMON_LABEL=local.curfeed
 
 die() {
-  echo "curfew: $*" >&2
+  echo "curfeed: $*" >&2
   exit 1
 }
 
 usage() {
   cat << 'EOF'
-使い方: curfew <コマンド> [引数]
+使い方: curfeed <コマンド> [引数]
 
   status                  今の状態と、次に切り替わる時刻を表示する（引数なしでも同じ）
   list                    ブロックするドメインを表示する
   add <ドメイン>...        ブロックするドメインを追加する（URL を貼り付けてもよい）
   remove <ドメイン>...     ブロックするドメインを削除する
-  set-time <開始-終了>...  許可時間帯をまとめて置き換える（例: curfew set-time 12:00-13:00 21:00-22:00）
+  set-time <開始-終了>...  許可時間帯をまとめて置き換える（例: curfeed set-time 12:00-13:00 21:00-22:00）
   log [件数]               切り替えとタブを閉じた記録を表示する（既定は 20 件）
-  uninstall [--yes]        curfew を削除し、hosts のブロックも解除する（--yes で確認を省く）
+  uninstall [--yes]        curfeed を削除し、hosts のブロックも解除する（--yes で確認を省く）
   help                     この説明を表示する
 
 add / remove / set-time / uninstall は管理者権限で実行します（必要ならパスワードを求めます）。
@@ -36,18 +36,18 @@ EOF
 
 # 設定と hosts を書き換えられなければ、同じコマンドを sudo で実行し直す。引数: 元のコマンドと引数
 require_write() {
-  if [ -w "$CURFEW_BLOCKLIST" ] && [ -w "$CURFEW_CONFIG" ] && [ -w "$CURFEW_HOSTS" ]; then
+  if [ -w "$CURFEED_BLOCKLIST" ] && [ -w "$CURFEED_CONFIG" ] && [ -w "$CURFEED_HOSTS" ]; then
     return 0
   fi
-  [ "$(id -u)" -ne 0 ] || die "書き込めません: $CURFEW_ETC と $CURFEW_HOSTS を確認してください"
+  [ "$(id -u)" -ne 0 ] || die "書き込めません: $CURFEED_ETC と $CURFEED_HOSTS を確認してください"
   echo "管理者権限が必要です。sudo で実行し直します" >&2
   exec sudo "$0" "$@"
 }
 
 # 変更をすぐ hosts に反映し、結果をログに残す
 apply_now() {
-  sh "$LIBEXEC/apply" >> "$CURFEW_APPLY_LOG" 2>&1 \
-    || die "hosts への反映に失敗しました（curfew log で確認してください）"
+  sh "$LIBEXEC/apply" >> "$CURFEED_APPLY_LOG" 2>&1 \
+    || die "hosts への反映に失敗しました（curfeed log で確認してください）"
 }
 
 # URL やドメインからホスト名（小文字）を取り出す
@@ -75,7 +75,7 @@ format_duration() {
 }
 
 require_blocklist() {
-  [ -r "$CURFEW_BLOCKLIST" ] || die "blocklist を読めません: $CURFEW_BLOCKLIST"
+  [ -r "$CURFEED_BLOCKLIST" ] || die "blocklist を読めません: $CURFEED_BLOCKLIST"
 }
 
 # 次に切り替わる時刻（HHMM）を出す。引数: 現在 許可時間帯 許可中なら 1
@@ -101,9 +101,9 @@ next_switch() {
 }
 
 cmd_status() {
-  now=$(curfew_now)
+  now=$(curfeed_now)
   to_minutes "$now" > /dev/null || die "現在時刻が不正です: $now"
-  load_windows || die "$curfew_error"
+  load_windows || die "$curfeed_error"
   require_blocklist
   if in_any_window "$now" "$allow_windows"; then
     state=許可中
@@ -135,12 +135,12 @@ cmd_status() {
   echo "$next_line"
   echo "ブロック対象: $count ドメイン"
   if [ "$full_day" -eq 1 ]; then
-    echo "※ 許可時間帯が24時間なので、何もブロックしません。curfew set-time 21:00-22:00 のように決めてください"
+    echo "※ 許可時間帯が24時間なので、何もブロックしません。curfeed set-time 21:00-22:00 のように決めてください"
   fi
   if [ "$count" -eq 0 ]; then
-    echo "※ ブロックするドメインがありません。curfew add youtube.com のように登録してください"
+    echo "※ ブロックするドメインがありません。curfeed add youtube.com のように登録してください"
   elif [ "$is_blocked" -ne "$should_block" ]; then
-    echo "※ hosts にはまだ反映されていません（通常1分以内に反映されます。続く場合は curfew log を確認してください）"
+    echo "※ hosts にはまだ反映されていません（通常1分以内に反映されます。続く場合は curfeed log を確認してください）"
   fi
   if launchctl print "system/$DAEMON_LABEL" > /dev/null 2>&1; then
     echo "自動切り替え: 動作中"
@@ -155,12 +155,12 @@ cmd_list() {
   if [ -n "$domains" ]; then
     printf '%s\n' "$domains"
   else
-    echo "ブロックするドメインは登録されていません（curfew add youtube.com のように登録できます）"
+    echo "ブロックするドメインは登録されていません（curfeed add youtube.com のように登録できます）"
   fi
 }
 
 cmd_add() {
-  [ $# -gt 0 ] || die "追加するドメインを指定してください（例: curfew add tiktok.com）"
+  [ $# -gt 0 ] || die "追加するドメインを指定してください（例: curfeed add tiktok.com）"
   require_blocklist
   for arg in "$@"; do
     valid_domain "$(host_of "$arg")" || die "ドメインとして不正です: $arg"
@@ -182,18 +182,18 @@ $d"
   [ -n "$added" ] || return 0
 
   # 最終行に改行が無いと、追記したドメインが前の行につながってしまう
-  if [ -s "$CURFEW_BLOCKLIST" ] && [ -n "$(tail -c 1 "$CURFEW_BLOCKLIST")" ]; then
-    echo >> "$CURFEW_BLOCKLIST"
+  if [ -s "$CURFEED_BLOCKLIST" ] && [ -n "$(tail -c 1 "$CURFEED_BLOCKLIST")" ]; then
+    echo >> "$CURFEED_BLOCKLIST"
   fi
   for d in $added; do
-    echo "$d" >> "$CURFEW_BLOCKLIST"
+    echo "$d" >> "$CURFEED_BLOCKLIST"
   done
   apply_now
   echo "追加しました:$added"
 }
 
 cmd_remove() {
-  [ $# -gt 0 ] || die "削除するドメインを指定してください（例: curfew remove tiktok.com）"
+  [ $# -gt 0 ] || die "削除するドメインを指定してください（例: curfeed remove tiktok.com）"
   require_blocklist
   known=$(blocklist_domains | tr 'A-Z' 'a-z')
   removed=""
@@ -218,8 +218,8 @@ cmd_remove() {
       if (tolower(f[1]) in drop) next
       print
     }
-  ' "$CURFEW_BLOCKLIST" > "$tmp"
-  cat "$tmp" > "$CURFEW_BLOCKLIST"
+  ' "$CURFEED_BLOCKLIST" > "$tmp"
+  cat "$tmp" > "$CURFEED_BLOCKLIST"
   rm -f "$tmp"
   apply_now
   echo "削除しました:$removed"
@@ -238,8 +238,8 @@ parse_window() {
 }
 
 cmd_set_time() {
-  [ $# -gt 0 ] || die "許可時間帯を指定してください（例: curfew set-time 12:00-13:00 21:00-22:00）"
-  # 以前の書き方（curfew set-time 21:00 22:00）は、1つの許可時間帯として扱う
+  [ $# -gt 0 ] || die "許可時間帯を指定してください（例: curfeed set-time 12:00-13:00 21:00-22:00）"
+  # 以前の書き方（curfeed set-time 21:00 22:00）は、1つの許可時間帯として扱う
   case "$*" in
     *-*) ;;
     *)
@@ -266,8 +266,8 @@ cmd_log() {
   case $n in
     '' | *[!0-9]*) die "件数は数字で指定してください: $n" ;;
   esac
-  # 同じ時刻なら切り替え（curfew.log）を先に並べる
-  logs=$(cat "$CURFEW_APPLY_LOG" "$CURFEW_CLOSE_TABS_LOG" 2> /dev/null | sort -s -k1,2 | tail -n "$n")
+  # 同じ時刻なら切り替え（curfeed.log）を先に並べる
+  logs=$(cat "$CURFEED_APPLY_LOG" "$CURFEED_CLOSE_TABS_LOG" 2> /dev/null | sort -s -k1,2 | tail -n "$n")
   if [ -n "$logs" ]; then
     printf '%s\n' "$logs"
   else
@@ -282,13 +282,13 @@ cmd_uninstall() {
     -y | --yes) confirmed=1 ;;
     *) die "不明なオプションです: $1" ;;
   esac
-  # install.sh が libexec に置いた uninstall.sh を使う。リポジトリの bin/curfew から実行したときは無い
+  # install.sh が libexec に置いた uninstall.sh を使う。リポジトリの bin/curfeed から実行したときは無い
   uninstaller="$LIBEXEC/uninstall.sh"
   [ -r "$uninstaller" ] \
-    || die "インストールされた curfew が見つかりません（リポジトリからは sudo ./uninstall.sh で削除できます）"
+    || die "インストールされた curfeed が見つかりません（リポジトリからは sudo ./uninstall.sh で削除できます）"
 
   if [ "$confirmed" -eq 0 ]; then
-    printf 'curfew を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
+    printf 'curfeed を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
     read -r answer || answer=""
     case $answer in
       y | Y | yes | YES) ;;
@@ -318,7 +318,7 @@ case $cmd in
   uninstall) cmd_uninstall "$@" ;;
   help | -h | --help) usage ;;
   *)
-    echo "curfew: 不明なコマンドです: $cmd" >&2
+    echo "curfeed: 不明なコマンドです: $cmd" >&2
     usage >&2
     exit 2
     ;;

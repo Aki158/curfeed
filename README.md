@@ -1,7 +1,9 @@
-# curfew
+# curfeed
 
 決めた時間帯以外は、SNS や YouTube などのサイトを見られなくする macOS 用のコマンドです。
 たとえば「21:00〜22:00 だけ SNS を見てよい」「昼休みと夜だけ見てよい」という使い方を想定しています。
+
+名前は curfew（門限）と feed（SNS のタイムライン）を組み合わせた造語です。
 
 - 許可時間帯以外は、登録したドメインを `/etc/hosts` でブロックします
 - ブロックが始まった時点で開いたままの Chrome のタブも自動で閉じ、Chrome に残っている接続を切ります
@@ -16,8 +18,8 @@
 ## インストール
 
 ```sh
-git clone <このリポジトリの URL> ~/workspace/curfew
-cd ~/workspace/curfew
+git clone <このリポジトリの URL> ~/workspace/curfeed
+cd ~/workspace/curfeed
 sudo ./install.sh
 ```
 
@@ -35,41 +37,41 @@ sudo ./install.sh
 2. 見てもよい時間帯（許可時間帯）を決める
 
 ```sh
-curfew add youtube.com www.youtube.com x.com www.instagram.com instagram.com
-curfew set-time 21:00-22:00
+curfeed add youtube.com www.youtube.com x.com www.instagram.com instagram.com
+curfeed set-time 21:00-22:00
 ```
 
-あとで制限をやめたくなったら、`curfew set-time 00:00-24:00` で 24 時間許可に戻せます。
+あとで制限をやめたくなったら、`curfeed set-time 00:00-24:00` で 24 時間許可に戻せます。
 
 ### 許可時間帯を複数にする
 
 `set-time` に「開始-終了」を空白で区切って並べると、複数の許可時間帯を設定できます。
 
 ```sh
-curfew set-time 12:00-13:00 21:00-22:00   # 昼休みと夜の2つ
-curfew set-time 23:00-01:00               # 日付をまたぐ時間帯も使える
+curfeed set-time 12:00-13:00 21:00-22:00   # 昼休みと夜の2つ
+curfeed set-time 23:00-01:00               # 日付をまたぐ時間帯も使える
 ```
 
 - `set-time` は、それまでの許可時間帯を**すべて置き換えます**（追加ではありません）。
 - 重なったりつながったりしている時間帯は、自動で1つにまとめて保存します（例: `12:00-14:00 13:00-15:00` → `12:00〜15:00`）。
-- 1つだけなら、`curfew set-time 21:00 22:00` という書き方も使えます。
+- 1つだけなら、`curfeed set-time 21:00 22:00` という書き方も使えます。
 
 ## 使い方
 
 ```sh
-curfew                         # 今の状態（curfew status と同じ）
-curfew list                    # ブロックするドメインの一覧
-curfew add tiktok.com          # ドメインを追加（URL を貼り付けてもよい）
-curfew remove tiktok.com       # ドメインを削除
-curfew set-time 12:00-13:00 21:00-22:00   # 許可時間帯をまとめて置き換え（00:00-24:00 で 24 時間許可）
-curfew log                     # 切り替えとタブを閉じた記録（curfew log 50 で件数指定）
-curfew uninstall               # curfew を削除（確認あり。--yes で確認を省く）
-curfew help                    # 使い方
+curfeed                         # 今の状態（curfeed status と同じ）
+curfeed list                    # ブロックするドメインの一覧
+curfeed add tiktok.com          # ドメインを追加（URL を貼り付けてもよい）
+curfeed remove tiktok.com       # ドメインを削除
+curfeed set-time 12:00-13:00 21:00-22:00   # 許可時間帯をまとめて置き換え（00:00-24:00 で 24 時間許可）
+curfeed log                     # 切り替えとタブを閉じた記録（curfeed log 50 で件数指定）
+curfeed uninstall               # curfeed を削除（確認あり。--yes で確認を省く）
+curfeed help                    # 使い方
 ```
 
 `add` / `remove` / `set-time` / `uninstall` は管理者パスワードを求めます。`add` / `remove` / `set-time` の変更はすぐ hosts に反映されます。
 
-`curfew status` の表示例:
+`curfeed status` の表示例:
 
 ```
 状態: ブロック中
@@ -83,11 +85,11 @@ curfew help                    # 使い方
 
 | 役割 | 実体 | 動くタイミング |
 |---|---|---|
-| hosts の切り替え | `/usr/local/libexec/curfew/apply`（root の LaunchDaemon `local.curfew`） | 起動時と1分ごと |
-| 開いたままのタブを閉じ、残っている接続を切る | `/usr/local/libexec/curfew/close-tabs`（ログイン中のユーザーの LaunchAgent `local.curfew.close-tabs`） | hosts が変わった直後と1分ごと |
-| 操作 | `/usr/local/bin/curfew` | 手動 |
+| hosts の切り替え | `/usr/local/libexec/curfeed/apply`（root の LaunchDaemon `local.curfeed`） | 起動時と1分ごと |
+| 開いたままのタブを閉じ、残っている接続を切る | `/usr/local/libexec/curfeed/close-tabs`（ログイン中のユーザーの LaunchAgent `local.curfeed.close-tabs`） | hosts が変わった直後と1分ごと |
+| 操作 | `/usr/local/bin/curfeed` | 手動 |
 
-- hosts は `# >>> curfew >>>` 〜 `# <<< curfew <<<` の区間だけを書き換えます。それ以外の行には触れません。
+- hosts は `# >>> curfeed >>>` 〜 `# <<< curfeed <<<` の区間だけを書き換えます。それ以外の行には触れません。
 - ブロック中かどうかは、タブを閉じる側も `/etc/hosts` のブロック区間で判断します。時刻の判定は `apply` だけが行います。
 
 ### hosts だけでは足りない理由
@@ -95,7 +97,7 @@ curfew help                    # 使い方
 Chrome は一度つないだサーバーとの接続をしばらく使い回し、その間は接続先を DNS で調べ直しません。
 そのため、許可時間中に YouTube などを開いていると、ブロックが始まってからも同じ接続でページを開けてしまいます。
 
-curfew は次のタイミングで Chrome の通信プロセス（Network Service）を終了させ、残っている接続を切ります。
+curfeed は次のタイミングで Chrome の通信プロセス（Network Service）を終了させ、残っている接続を切ります。
 通信プロセスは Chrome がすぐに起動し直し、タブやウィンドウはそのまま残ります。
 
 - ブロックが始まったとき
@@ -105,13 +107,13 @@ curfew は次のタイミングで Chrome の通信プロセス（Network Servic
 
 | ファイル | 内容 |
 |---|---|
-| `/usr/local/etc/curfew/config` | 許可時間帯（`curfew set-time` で変更） |
-| `/usr/local/etc/curfew/blocklist` | ブロックするドメイン（`curfew add` / `remove` で変更） |
+| `/usr/local/etc/curfeed/config` | 許可時間帯（`curfeed set-time` で変更） |
+| `/usr/local/etc/curfeed/blocklist` | ブロックするドメイン（`curfeed add` / `remove` で変更） |
 
 ## アンインストール
 
 ```sh
-curfew uninstall
+curfeed uninstall
 ```
 
 リポジトリが手元にあれば、`sudo ./uninstall.sh`（または `make uninstall`）でも同じように削除できます。
@@ -124,19 +126,19 @@ curfew uninstall
 
 | ファイル | 中身 |
 |---|---|
-| `/usr/local/etc/curfew/config` | 許可時間帯 |
-| `/usr/local/etc/curfew/blocklist` | ブロックするドメインの一覧 |
-| `/var/log/curfew.log` | 解除・ブロックの記録 |
-| `/var/log/curfew-close-tabs.log` | タブを閉じた・接続を切った記録 |
-| `/etc/hosts.before-curfew` | curfew を入れる前の hosts（元に戻すときの保険） |
-| `~/Library/Application Support/curfew/` | タブを閉じる側が前回の状態を記録する場所 |
+| `/usr/local/etc/curfeed/config` | 許可時間帯 |
+| `/usr/local/etc/curfeed/blocklist` | ブロックするドメインの一覧 |
+| `/var/log/curfeed.log` | 解除・ブロックの記録 |
+| `/var/log/curfeed-close-tabs.log` | タブを閉じた・接続を切った記録 |
+| `/etc/hosts.before-curfeed` | curfeed を入れる前の hosts（元に戻すときの保険） |
+| `~/Library/Application Support/curfeed/` | タブを閉じる側が前回の状態を記録する場所 |
 
 完全に消す場合は、アンインストールのあとに次を実行してください。
-`/etc/hosts.before-curfew` を消すのは、`/etc/hosts` からブロック区間（`# >>> curfew >>>` で始まる部分）が消えていることを確かめてからにしてください。
+`/etc/hosts.before-curfeed` を消すのは、`/etc/hosts` からブロック区間（`# >>> curfeed >>>` で始まる部分）が消えていることを確かめてからにしてください。
 
 ```sh
-sudo rm -rf /usr/local/etc/curfew /var/log/curfew.log /var/log/curfew-close-tabs.log /etc/hosts.before-curfew
-rm -rf ~/"Library/Application Support/curfew"
+sudo rm -rf /usr/local/etc/curfeed /var/log/curfeed.log /var/log/curfeed-close-tabs.log /etc/hosts.before-curfeed
+rm -rf ~/"Library/Application Support/curfeed"
 ```
 
 ファイル以外に、Chrome を操作する許可も残ります。不要なら システム設定 → プライバシーとセキュリティ → オートメーション でオフにしてください。

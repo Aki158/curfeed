@@ -1,5 +1,5 @@
 #!/bin/sh
-# libexec/curfew/apply のテスト。一時ディレクトリの hosts / 設定を使い、/etc/hosts には触れない
+# libexec/curfeed/apply のテスト。一時ディレクトリの hosts / 設定を使い、/etc/hosts には触れない
 
 . "$(dirname "$0")/helpers.sh"
 
@@ -24,8 +24,8 @@ setup() {
 
 # 引数: 現在時刻 HHMM。終了コードを返す
 run() {
-  CURFEW_ETC="$WORK/etc" CURFEW_HOSTS="$WORK/hosts" CURFEW_NOW="$1" \
-    sh "$ROOT/libexec/curfew/apply" > "$WORK/stdout" 2> "$WORK/stderr"
+  CURFEED_ETC="$WORK/etc" CURFEED_HOSTS="$WORK/hosts" CURFEED_NOW="$1" \
+    sh "$ROOT/libexec/curfeed/apply" > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
 is_blocked() { grep -qx '0.0.0.0 www.youtube.com' "$WORK/hosts"; }
@@ -34,7 +34,7 @@ assert_blocked() {
   if is_blocked; then ok "$1"; else ng "$1" "ブロック行がありません"; fi
 }
 assert_unblocked() {
-  if ! is_blocked && ! grep -q 'curfew' "$WORK/hosts"; then ok "$1"; else ng "$1" "ブロック行が残っています"; fi
+  if ! is_blocked && ! grep -q 'curfeed' "$WORK/hosts"; then ok "$1"; else ng "$1" "ブロック行が残っています"; fi
 }
 
 echo "時間帯の判定（許可 21:00-22:00）"
@@ -71,10 +71,10 @@ setup; run 2059
 check_has_line "IPv6 のブロック行も書く" "$WORK/hosts" ':: www.youtube.com'
 check_has_line "行末コメント付きのドメインも読む" "$WORK/hosts" '0.0.0.0 x.com'
 check "blocklist のコメント・空行は無視する（2ドメイン×2行=4行）" \
-  "$(sed -n '/^# >>> curfew >>>$/,/^# <<< curfew <<<$/p' "$WORK/hosts" | grep -vc '^#')" 4
+  "$(sed -n '/^# >>> curfeed >>>$/,/^# <<< curfeed <<<$/p' "$WORK/hosts" | grep -vc '^#')" 4
 check "状態が変わったときはログを1行出す" "$(grep -c 'ブロックしました' "$WORK/stdout")" 1
 run 2059; run 2300
-check "繰り返し実行してもブロック区間が重複しない" "$(grep -c '^# >>> curfew >>>$' "$WORK/hosts")" 1
+check "繰り返し実行してもブロック区間が重複しない" "$(grep -c '^# >>> curfeed >>>$' "$WORK/hosts")" 1
 check "状態が変わらないときはログを出さない" "$(cat "$WORK/stdout")" ""
 run 2130
 if [ "$(cat "$WORK/hosts")" = "$(printf '%s' "$ORIGINAL_HOSTS")" ] \
@@ -114,7 +114,7 @@ assert_error_unchanged() {
     ng "$name" "終了コードが 0 でした"
   elif [ "$(cat "$WORK/hosts")" != "$before" ]; then
     ng "$name" "hosts が変更されました"
-  elif ! grep -q 'curfew apply:' "$WORK/stderr"; then
+  elif ! grep -q 'curfeed apply:' "$WORK/stderr"; then
     ng "$name" "エラーメッセージがありません: $(cat "$WORK/stderr")"
   else
     ok "$name"
@@ -134,7 +134,7 @@ setup; printf 'ALLOW_START=2100\n' > "$WORK/etc/config"
 assert_error_unchanged "ALLOW_END が無い" run 2059
 setup; assert_error_unchanged "現在時刻が不正（2460）" run 2460
 setup; assert_error_unchanged "現在時刻が不正（abc）" run abc
-setup; printf '%s\n' '# >>> curfew >>>' '0.0.0.0 www.youtube.com' >> "$WORK/hosts"
+setup; printf '%s\n' '# >>> curfeed >>>' '0.0.0.0 www.youtube.com' >> "$WORK/hosts"
 assert_error_unchanged "hosts の開始マーカーに対応する終了マーカーが無い" run 2130
 setup; run 2059
 if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] ' "$WORK/stdout"; then
@@ -143,7 +143,7 @@ else
   ng "ログ行は日時から始まる" "$(cat "$WORK/stdout")"
 fi
 setup; rm "$WORK/etc/blocklist"; run 2059
-if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] curfew apply:' "$WORK/stderr"; then
+if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] curfeed apply:' "$WORK/stderr"; then
   ok "エラー行も日時から始まる"
 else
   ng "エラー行も日時から始まる" "$(cat "$WORK/stderr")"

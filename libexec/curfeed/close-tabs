@@ -11,7 +11,7 @@ set -f
 . "$(dirname "$0")/lib.sh"
 
 die() {
-  echo "$(stamp) curfew close-tabs: $*" >&2
+  echo "$(stamp) curfeed close-tabs: $*" >&2
   exit 1
 }
 
@@ -24,8 +24,8 @@ reset_connections() {
   fi
 }
 
-[ -r "$CURFEW_HOSTS" ] || die "hosts を読めません: $CURFEW_HOSTS"
-data_dir=$(curfew_data_dir)
+[ -r "$CURFEED_HOSTS" ] || die "hosts を読めません: $CURFEED_HOSTS"
+data_dir=$(curfeed_data_dir)
 mkdir -p "$data_dir"
 state_file="$data_dir/state"
 previous=$(cat "$state_file" 2> /dev/null || true)
