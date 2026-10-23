@@ -75,9 +75,9 @@ check "ALLOW が複数行あれば最後の行を使う" "$(cat "$WORK/stdout")"
 for bad in 'ALLOW=1200-2500' 'ALLOW=1200' 'ALLOW=1200-1200' 'ALLOW=2400-0100' 'ALLOW=12:00-13:00' 'ALLOW=' '# 何もない'; do
   load_config "$bad"; status=$?
   if [ "$status" -ne 0 ] && grep -q '許可時間帯' "$WORK/stderr"; then
-    ok "不正な設定（$bad）は理由を付けて失敗する"
+    ok "不正な設定（${bad}）は理由を付けて失敗する"
   else
-    ng "不正な設定（$bad）は理由を付けて失敗する" "status=$status stdout=$(cat "$WORK/stdout") stderr=$(cat "$WORK/stderr")"
+    ng "不正な設定（${bad}）は理由を付けて失敗する" "status=$status stdout=$(cat "$WORK/stdout") stderr=$(cat "$WORK/stderr")"
   fi
 done
 

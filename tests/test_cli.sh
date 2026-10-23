@@ -171,9 +171,9 @@ for args in "25:00 23:00" "21:00 2100" "12:00-12:00" "24:00-01:00" "12:00-13:00 
   "12:00-13:00 21:00" "21:00 22:00 23:00" "12:00~13:00" "21:00"; do
   setup; before=$(snapshot); run 2130 set-time $args; status=$?
   if [ "$status" -ne 0 ] && [ "$(snapshot)" = "$before" ] && [ -s "$WORK/stderr" ]; then
-    ok "不正な指定（$args）はエラー終了し、何も変えない"
+    ok "不正な指定（${args}）はエラー終了し、何も変えない"
   else
-    ng "不正な指定（$args）はエラー終了し、何も変えない" "status=$status $(allow)"
+    ng "不正な指定（${args}）はエラー終了し、何も変えない" "status=$status $(allow)"
   fi
 done
 setup; run 2130 set-time; status=$?

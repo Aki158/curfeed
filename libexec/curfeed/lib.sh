@@ -150,13 +150,13 @@ load_windows() {
   allow_windows=""
   for _w in $(printf '%s' "$_raw" | tr ',' ' '); do
     if ! valid_window "$_w"; then
-      curfeed_error="許可時間帯が不正です: '$_w'（$CURFEED_CONFIG）"
+      curfeed_error="許可時間帯が不正です: '$_w'（${CURFEED_CONFIG}）"
       return 1
     fi
     allow_windows="$allow_windows $_w"
   done
   if [ -z "$allow_windows" ]; then
-    curfeed_error="許可時間帯が設定されていません（$CURFEED_CONFIG）"
+    curfeed_error="許可時間帯が設定されていません（${CURFEED_CONFIG}）"
     return 1
   fi
   allow_windows=$(merge_windows "$allow_windows")

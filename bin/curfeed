@@ -119,7 +119,7 @@ cmd_status() {
   window=$(format_windows "$allow_windows")
   if is_full_day "$allow_windows"; then
     full_day=1
-    window="$window（24時間）"
+    window="${window}（24時間）"
     next_line="$next_label: なし"
   else
     full_day=0
@@ -250,7 +250,7 @@ cmd_set_time() {
   windows=""
   for arg in "$@"; do
     w=$(parse_window "$arg") \
-      || die "許可時間帯が不正です: $arg（21:00-22:00 のように指定してください。開始と終了は別の時刻にし、開始に 24:00 は使えません）"
+      || die "許可時間帯が不正です: ${arg}（21:00-22:00 のように指定してください。開始と終了は別の時刻にし、開始に 24:00 は使えません）"
     windows="$windows $w"
   done
   windows=$(merge_windows "$windows")
