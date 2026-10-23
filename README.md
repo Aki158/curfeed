@@ -65,7 +65,7 @@ curfeed add tiktok.com          # ドメインを追加（URL を貼り付けて
 curfeed remove tiktok.com       # ドメインを削除
 curfeed set-time 12:00-13:00 21:00-22:00   # 許可時間帯をまとめて置き換え（00:00-24:00 で 24 時間許可）
 curfeed log                     # 切り替えとタブを閉じた記録（curfeed log 50 で件数指定）
-curfeed uninstall               # curfeed を削除（確認あり。--purge で設定なども削除、--yes で確認を省く）
+curfeed uninstall               # curfeed をアンインストール（確認あり。--purge で設定なども削除、--yes で確認を省く）
 curfeed help                    # 使い方
 ```
 
@@ -117,7 +117,7 @@ curfeed uninstall            # 設定などは残す（入れ直したときに�
 curfeed uninstall --purge    # 設定・ログなども含めてすべて削除する
 ```
 
-リポジトリが手元にあれば、`sudo ./uninstall.sh`（`--purge` も使えます）や `make uninstall` でも同じように削除できます。
+リポジトリが手元にあれば、`sudo ./uninstall.sh`（`--purge` も使えます）や `make uninstall` でも同じようにアンインストールできます。
 
 どちらも、プログラム本体・launchd のジョブ・hosts のブロック区間を取り除きます。
 

@@ -1,5 +1,6 @@
 #!/bin/sh
-# curfeed を停止・削除し、hosts からブロック区間を取り除く。実行: sudo ./uninstall.sh [--purge]
+# curfeed をアンインストールする（ジョブを止めて本体を削除し、hosts からブロック区間を取り除く）。
+# 実行: sudo ./uninstall.sh [--purge]
 # 通常は設定・ログ・元の hosts の退避ファイル・状態の記録を残し（入れ直したときに引き継ぐ）、
 # それらを消すためのコマンドを表示する。--purge を付けると、それらもすべて削除する
 #
@@ -67,7 +68,7 @@ rm -f "$tmp"
 dscacheutil -flushcache 2> /dev/null || true
 killall -HUP mDNSResponder 2> /dev/null || true
 
-echo "curfeed を削除しました"
+echo "curfeed をアンインストールしました"
 if [ "$purge" -eq 1 ]; then
   leftovers | while IFS='|' read -r label path; do
     rm -rf -- "$path"

@@ -28,7 +28,7 @@ usage() {
   set-time <開始-終了>...  許可時間帯をまとめて置き換える（例: curfeed set-time 12:00-13:00 21:00-22:00）
   log [件数]               切り替えとタブを閉じた記録を表示する（既定は 20 件）
   uninstall [--purge] [--yes]
-                           curfeed を削除し、hosts のブロックも解除する
+                           curfeed をアンインストールし、hosts のブロックも解除する
                            （--purge で設定・ログなども削除、--yes で確認を省く）
   help                     この説明を表示する
 
@@ -290,13 +290,13 @@ cmd_uninstall() {
   # install.sh が libexec に置いた uninstall.sh を使う。リポジトリの bin/curfeed から実行したときは無い
   uninstaller="$LIBEXEC/uninstall.sh"
   [ -r "$uninstaller" ] \
-    || die "インストールされた curfeed が見つかりません（リポジトリからは sudo ./uninstall.sh で削除できます）"
+    || die "インストールされた curfeed が見つかりません（リポジトリからは sudo ./uninstall.sh でアンインストールできます）"
 
   if [ "$confirmed" -eq 0 ]; then
     if [ -n "$purge" ]; then
-      printf 'curfeed を削除し、hosts のブロックも解除します。設定・ログなども含めてすべて削除します。よろしいですか？ [y/N] '
+      printf 'curfeed をアンインストールし、hosts のブロックも解除します。設定・ログなども含めてすべて削除します。よろしいですか？ [y/N] '
     else
-      printf 'curfeed を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
+      printf 'curfeed をアンインストールし、hosts のブロックも解除します。よろしいですか？ [y/N] '
     fi
     read -r answer || answer=""
     case $answer in
