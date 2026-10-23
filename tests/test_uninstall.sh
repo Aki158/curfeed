@@ -76,8 +76,10 @@ check "終了コード 0" "$status" 0
 check_gone "本体と launchd の設定を削除する" $PROGRAM
 check "2つのジョブを止める" "$(grep -c '^bootout' "$WORK/stub/launchctl")" 2
 check "hosts からブロック区間だけを取り除く" "$(cat "$SYS/hosts")" "$EXPECTED_HOSTS"
-check_kept "設定・ログ・元の hosts・状態の記録は残す" "$SYS/etc/curfeed/config" "$SYS/etc/curfeed/blocklist" \
-  "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed" "$DATA/state"
+check_kept "設定・ログ・元の hosts は残す" "$SYS/etc/curfeed/config" "$SYS/etc/curfeed/blocklist" \
+  "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed"
+check_gone "状態の記録は（入れ直したときに古い判定が残らないよう）必ず消す" "$DATA"
+check "状態の記録は残すものとして表示しない" "$(grep -c '状態の記録' "$WORK/stdout")" 0
 check_kept "curfeed と関係ないファイルは消さない" $UNRELATED
 check "README を見に行かせない" "$(grep -c 'README' "$WORK/stdout")" 0
 check "残したものを消すコマンドを1行で表示する" "$(grep -c '^  sudo rm -rf ' "$WORK/stdout")" 1
@@ -85,13 +87,14 @@ check "Chrome の操作許可の外し方を案内する" "$(grep -c 'オート�
 command_line=$(grep '^  sudo rm -rf ' "$WORK/stdout")
 sh -c "${command_line#*sudo }"
 check_gone "表示されたコマンドを実行すると、残したものがすべて消える" "$SYS/etc/curfeed" "$SYS/log/curfeed.log" \
-  "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed" "$DATA"
+  "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed"
 check_kept "表示されたコマンドは curfeed と関係ないファイルを消さない" $UNRELATED
 
 setup; rm "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-tabs.log"; run
 check "無いものはコマンドに含めない" "$(grep '^  sudo rm -rf ' "$WORK/stdout" | grep -c 'curfeed.log')" 0
-setup; rm -rf "$SYS/etc/curfeed" "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed" "$DATA"; run
-check "何も残っていなければ消すコマンドは表示しない" "$(grep -c 'sudo rm' "$WORK/stdout")" 0
+setup; rm -rf "$SYS/etc/curfeed" "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-tabs.log" "$SYS/hosts.before-curfeed"; run
+check "設定などが何も残っていなければ消すコマンドは表示しない" "$(grep -c 'sudo rm' "$WORK/stdout")" 0
+check_gone "設定などが何も残っていなくても状態の記録は消す" "$DATA"
 
 echo "--purge"
 setup; run --purge; status=$?

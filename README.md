@@ -138,14 +138,15 @@ curfeed uninstall --purge    # 設定・ログなども含めてすべて削除�
 | `/var/log/curfeed.log` | 解除・ブロックの記録 |
 | `/var/log/curfeed-close-tabs.log` | タブを閉じた・接続を切った記録 |
 | `/etc/hosts.before-curfeed` | curfeed を入れる前の hosts（元に戻すときの保険） |
-| `~/Library/Application Support/curfeed/` | タブを閉じる側が前回の状態を記録する場所 |
 
 表示されたコマンドを見逃した場合は、次のコマンドで同じように消せます。
 
 ```sh
 sudo rm -rf /usr/local/etc/curfeed /var/log/curfeed.log /var/log/curfeed-close-tabs.log /etc/hosts.before-curfeed
-rm -rf ~/"Library/Application Support/curfeed"
 ```
+
+タブを閉じる仕組みが使う「前回の状態の記録」（`~/Library/Application Support/curfeed/`）は、`--purge` の有無にかかわらず必ず消します。
+残っていると、入れ直したときに「ずっとブロック中だった」と判断され、ブロック開始時の Chrome の接続のリセットが行われないためです。
 
 ファイル以外に、Chrome を操作する許可も残ります（`--purge` でも消えません）。不要なら システム設定 → プライバシーとセキュリティ → オートメーション でオフにしてください。
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 # curfeed をアンインストールする（ジョブを止めて本体を削除し、hosts からブロック区間を取り除く）。
 # 実行: sudo ./uninstall.sh [--purge]
-# 通常は設定・ログ・元の hosts の退避ファイル・状態の記録を残し（入れ直したときに引き継ぐ）、
+# 通常は設定・ログ・元の hosts の退避ファイルを残し（入れ直したときに引き継ぐ）、
 # それらを消すためのコマンドを表示する。--purge を付けると、それらもすべて削除する
 #
 # 環境変数で上書きできる値（lib.sh のものに加えて）:
@@ -44,7 +44,7 @@ fi
 # 残っている設定などを「表示名|パス」の形で1行ずつ出す
 leftovers() {
   for entry in "設定|$CURFEED_ETC" "ログ|$CURFEED_APPLY_LOG" "ログ|$CURFEED_CLOSE_TABS_LOG" \
-    "元の hosts|$CURFEED_HOSTS_BACKUP" "状態の記録|$data_dir"; do
+    "元の hosts|$CURFEED_HOSTS_BACKUP"; do
     if [ -n "${entry#*|}" ] && [ -e "${entry#*|}" ]; then
       printf '%s\n' "$entry"
     fi
@@ -67,6 +67,12 @@ cat "$tmp" > "$CURFEED_HOSTS"
 rm -f "$tmp"
 dscacheutil -flushcache 2> /dev/null || true
 killall -HUP mDNSResponder 2> /dev/null || true
+
+# タブを閉じる仕組みが使う「前回の状態の記録」は、動いている間だけ意味があるので必ず消す。
+# 残すと、入れ直したときに「ずっとブロック中だった」と判断され、Chrome の接続のリセットが行われない
+if [ -n "$data_dir" ]; then
+  rm -rf -- "$data_dir"
+fi
 
 echo "curfeed をアンインストールしました"
 if [ "$purge" -eq 1 ]; then
