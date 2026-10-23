@@ -1,0 +1,104 @@
+#!/bin/sh
+# ブロック中（hosts にブロック区間がある間）に、ブロック対象のホストを開いている Chrome のタブを閉じ、
+# Chrome に残っている接続を切る。
+# Chrome はブロック前に作った接続を使い回すため、hosts だけでは開いたままのタブも、
+# 同じホストを新しく開くことも止められない。その補助として動かす。
+# ログイン中のユーザーの LaunchAgent として、hosts の変更時と1分ごとに実行される。
+
+set -eu
+set -f
+
+. "$(dirname "$0")/lib.sh"
+
+die() {
+  echo "$(stamp) curfew close-tabs: $*" >&2
+  exit 1
+}
+
+# Chrome の通信プロセス（Network Service）を終了させ、残っている接続をすべて切る。
+# 通信プロセスはすぐに起動し直され、タブやウィンドウはそのまま残る。
+# 同じ仕組みの別アプリ（Electron 製など）に触れないよう、Google Chrome.app のものに限る
+reset_connections() {
+  if pkill -U "$(id -u)" -f 'Google Chrome\.app/.*--utility-sub-type=network\.mojom\.NetworkService'; then
+    echo "$(stamp) Chrome の接続をリセットしました"
+  fi
+}
+
+[ -r "$CURFEW_HOSTS" ] || die "hosts を読めません: $CURFEW_HOSTS"
+data_dir=$(curfew_data_dir)
+mkdir -p "$data_dir"
+state_file="$data_dir/state"
+previous=$(cat "$state_file" 2> /dev/null || true)
+
+blocked=$(blocked_hosts)
+# ブロック区間が無ければ許可時間なので何もしない
+if [ -z "$blocked" ]; then
+  echo allowed > "$state_file"
+  exit 0
+fi
+echo blocked > "$state_file"
+
+# 起動していない Chrome に問い合わせると起動してしまうので先に確認する
+pgrep -x 'Google Chrome' > /dev/null || exit 0
+
+# ブロックが始まった直後は、許可時間中に作られた接続が残っているので切る
+if [ "$previous" = blocked ]; then need_reset=0; else need_reset=1; fi
+
+# 各タブを「ウィンドウID<TAB>タブID<TAB>URL」の1行で受け取る
+if ! tabs=$(osascript -e '
+set sep to character id 9
+set out to ""
+if application "Google Chrome" is running then
+	tell application "Google Chrome"
+		repeat with w in windows
+			set wid to id of w
+			repeat with t in tabs of w
+				set out to out & (wid as text) & sep & ((id of t) as text) & sep & (URL of t) & linefeed
+			end repeat
+		end repeat
+	end tell
+end if
+return out'); then
+  # 接続のリセットはタブ一覧の取得（オートメーションの許可）に頼らないので、先に済ませる
+  [ "$need_reset" -eq 0 ] || reset_connections
+  die "Chrome のタブ一覧を取得できませんでした（システム設定 > プライバシーとセキュリティ > オートメーション を確認してください）"
+fi
+
+# URL のホストがブロック中のホストと完全一致するタブを「ウィンドウID タブID」で並べる
+ids=$(printf '%s\n' "$tabs" | BLOCKED="$blocked" awk -F '\t' '
+  BEGIN {
+    n = split(ENVIRON["BLOCKED"], list, "\n")
+    for (i = 1; i <= n; i++) block[list[i]] = 1
+  }
+  {
+    if (!match(tolower($3), /^https?:\/\//)) next
+    host = substr($3, RLENGTH + 1)
+    sub(/[\/?#].*/, "", host)
+    sub(/^.*@/, "", host)
+    sub(/:[0-9]*$/, "", host)
+    if (tolower(host) in block) printf "%s %s ", $1, $2
+  }
+')
+
+if [ -n "$ids" ]; then
+  set -- $ids
+  count=$(($# / 2))
+
+  osascript -e '
+on run argv
+	if application "Google Chrome" is not running then return
+	tell application "Google Chrome"
+		repeat with i from 1 to (count of argv) by 2
+			try
+				close (tab id ((item (i + 1) of argv) as integer) of window id ((item i of argv) as integer))
+			end try
+		end repeat
+	end tell
+end run' "$@" > /dev/null || die "Chrome のタブを閉じられませんでした"
+
+  echo "$(stamp) タブを ${count} 件閉じました"
+  # ブロック中に対象のページを開けたのは、接続が残っていたからなので切る
+  need_reset=1
+fi
+
+[ "$need_reset" -eq 0 ] || reset_connections

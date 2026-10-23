@@ -1,0 +1,69 @@
+#!/bin/sh
+# 許可時間帯以外は、blocklist のドメインを hosts でブロックする。
+# root の LaunchDaemon として1分ごとに実行される。状態が変わるときだけ hosts を書き換える。
+
+set -eu
+# blocklist の値がワイルドカードとして展開されないようにする
+set -f
+
+. "$(dirname "$0")/lib.sh"
+
+die() {
+  echo "$(stamp) curfew apply: $*" >&2
+  exit 1
+}
+
+now=$(curfew_now)
+to_minutes "$now" > /dev/null || die "現在時刻が不正です: $now"
+load_window || die "$curfew_error"
+in_window "$now" "$allow_start" "$allow_end" && allowed=1 || allowed=0
+
+[ -r "$CURFEW_BLOCKLIST" ] || die "blocklist を読めません: $CURFEW_BLOCKLIST"
+domains=$(blocklist_domains)
+for d in $domains; do
+  valid_domain "$d" || die "blocklist にドメインとして不正な値があります: $d"
+done
+
+begins=$(grep -cxF "$CURFEW_BEGIN_MARK" "$CURFEW_HOSTS" || true)
+ends=$(grep -cxF "$CURFEW_END_MARK" "$CURFEW_HOSTS" || true)
+[ "$begins" -le 1 ] && [ "$begins" -eq "$ends" ] \
+  || die "$CURFEW_HOSTS のマーカー行が壊れています。手動で確認してください"
+
+# ブロック対象が空なら、ブロック時間でもブロック区間は作らない
+if [ "$allowed" -eq 0 ] && [ -n "$domains" ]; then block=1; else block=0; fi
+
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+
+# 既存のブロック区間を除いた hosts を作り、ブロックする時間帯なら区間を付け直す
+awk -v b="$CURFEW_BEGIN_MARK" -v e="$CURFEW_END_MARK" '
+  $0 == b { skip = 1; next }
+  $0 == e { skip = 0; next }
+  !skip
+' "$CURFEW_HOSTS" > "$tmp"
+
+if [ "$block" -eq 1 ]; then
+  {
+    echo "$CURFEW_BEGIN_MARK"
+    for d in $domains; do
+      echo "0.0.0.0 $d"
+      echo ":: $d"
+    done
+    echo "$CURFEW_END_MARK"
+  } >> "$tmp"
+fi
+
+if cmp -s "$tmp" "$CURFEW_HOSTS"; then
+  exit 0
+fi
+
+# /etc/hosts はシンボリックリンクなので mv ではなく中身を上書きする
+cat "$tmp" > "$CURFEW_HOSTS"
+if [ "$block" -eq 1 ]; then
+  echo "$(stamp) ブロックしました"
+else
+  echo "$(stamp) 解除しました"
+fi
+
+dscacheutil -flushcache 2> /dev/null && killall -HUP mDNSResponder 2> /dev/null \
+  || echo "$(stamp) curfew apply: DNS キャッシュをクリアできませんでした（root で実行してください）" >&2

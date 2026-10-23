@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>local.curfew.close-tabs</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>/usr/local/libexec/curfew/close-tabs</string>
+	</array>
+	<!-- Chrome を操作するのでログイン中の画面セッションでだけ動かす -->
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<!-- hosts が書き換わった直後（ブロック開始時）と、1分ごとに確認する -->
+	<key>WatchPaths</key>
+	<array>
+		<string>/private/etc/hosts</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartInterval</key>
+	<integer>60</integer>
+	<key>StandardOutPath</key>
+	<string>/var/log/curfew-close-tabs.log</string>
+	<key>StandardErrorPath</key>
+	<string>/var/log/curfew-close-tabs.log</string>
+</dict>
+</plist>

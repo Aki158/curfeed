@@ -1,0 +1,279 @@
+#!/bin/sh
+# curfew: 決めた時間帯以外は、SNS などのサイトを見られなくする。使い方は `curfew help`
+
+set -eu
+set -f
+
+LIBEXEC=$(cd "$(dirname "$0")/../libexec/curfew" 2> /dev/null && pwd) || {
+  echo "curfew: libexec/curfew が見つかりません。install.sh でインストールし直してください" >&2
+  exit 1
+}
+. "$LIBEXEC/lib.sh"
+
+DAEMON_LABEL=local.curfew
+
+die() {
+  echo "curfew: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat << 'EOF'
+使い方: curfew <コマンド> [引数]
+
+  status                  今の状態と、次に切り替わる時刻を表示する（引数なしでも同じ）
+  list                    ブロックするドメインを表示する
+  add <ドメイン>...        ブロックするドメインを追加する（URL を貼り付けてもよい）
+  remove <ドメイン>...     ブロックするドメインを削除する
+  set-time <開始> <終了>   許可時間帯を変更する（例: curfew set-time 21:00 22:00）
+  log [件数]               切り替えとタブを閉じた記録を表示する（既定は 20 件）
+  uninstall [--yes]        curfew を削除し、hosts のブロックも解除する（--yes で確認を省く）
+  help                     この説明を表示する
+
+add / remove / set-time / uninstall は管理者権限で実行します（必要ならパスワードを求めます）。
+EOF
+}
+
+# 設定と hosts を書き換えられなければ、同じコマンドを sudo で実行し直す。引数: 元のコマンドと引数
+require_write() {
+  if [ -w "$CURFEW_BLOCKLIST" ] && [ -w "$CURFEW_CONFIG" ] && [ -w "$CURFEW_HOSTS" ]; then
+    return 0
+  fi
+  [ "$(id -u)" -ne 0 ] || die "書き込めません: $CURFEW_ETC と $CURFEW_HOSTS を確認してください"
+  echo "管理者権限が必要です。sudo で実行し直します" >&2
+  exec sudo "$0" "$@"
+}
+
+# 変更をすぐ hosts に反映し、結果をログに残す
+apply_now() {
+  sh "$LIBEXEC/apply" >> "$CURFEW_APPLY_LOG" 2>&1 \
+    || die "hosts への反映に失敗しました（curfew log で確認してください）"
+}
+
+# URL やドメインからホスト名（小文字）を取り出す
+host_of() {
+  _x=${1#*://}
+  _x=${_x%%/*}
+  _x=${_x%%\?*}
+  _x=${_x%%#*}
+  _x=${_x##*@}
+  _x=${_x%:*}
+  printf '%s\n' "$_x" | tr 'A-Z' 'a-z'
+}
+
+# 分を「1時間30分」の形で表す
+format_duration() {
+  _h=$(($1 / 60))
+  _m=$(($1 % 60))
+  if [ "$_h" -eq 0 ]; then
+    echo "${_m}分"
+  elif [ "$_m" -eq 0 ]; then
+    echo "${_h}時間"
+  else
+    echo "${_h}時間${_m}分"
+  fi
+}
+
+require_blocklist() {
+  [ -r "$CURFEW_BLOCKLIST" ] || die "blocklist を読めません: $CURFEW_BLOCKLIST"
+}
+
+cmd_status() {
+  now=$(curfew_now)
+  to_minutes "$now" > /dev/null || die "現在時刻が不正です: $now"
+  load_window || die "$curfew_error"
+  require_blocklist
+  if in_window "$now" "$allow_start" "$allow_end"; then
+    state=許可中
+    next_label=次のブロック
+    next=$allow_end
+    should_block=0
+  else
+    state=ブロック中
+    next_label=次の解除
+    next=$allow_start
+    should_block=1
+  fi
+  window="$(format_time "$allow_start")〜$(format_time "$allow_end")"
+  if is_full_day "$allow_start" "$allow_end"; then
+    full_day=1
+    window="$window（24時間）"
+    next_line="$next_label: なし"
+  else
+    full_day=0
+    left=$((($(to_minutes "$next") - $(to_minutes "$now") + 1440) % 1440))
+    next_line="$next_label: $(format_time "$next")（あと$(format_duration "$left")）"
+  fi
+  count=$(blocklist_domains | awk 'END { print NR }')
+  if [ -n "$(blocked_hosts)" ]; then is_blocked=1; else is_blocked=0; fi
+
+  echo "状態: $state"
+  echo "許可時間帯: $window"
+  echo "$next_line"
+  echo "ブロック対象: $count ドメイン"
+  if [ "$full_day" -eq 1 ]; then
+    echo "※ 許可時間帯が24時間なので、何もブロックしません。curfew set-time 21:00 22:00 のように決めてください"
+  fi
+  if [ "$count" -eq 0 ]; then
+    echo "※ ブロックするドメインがありません。curfew add youtube.com のように登録してください"
+  elif [ "$is_blocked" -ne "$should_block" ]; then
+    echo "※ hosts にはまだ反映されていません（通常1分以内に反映されます。続く場合は curfew log を確認してください）"
+  fi
+  if launchctl print "system/$DAEMON_LABEL" > /dev/null 2>&1; then
+    echo "自動切り替え: 動作中"
+  else
+    echo "自動切り替え: 停止中（install.sh でインストールしてください）"
+  fi
+}
+
+cmd_list() {
+  require_blocklist
+  domains=$(blocklist_domains)
+  if [ -n "$domains" ]; then
+    printf '%s\n' "$domains"
+  else
+    echo "ブロックするドメインは登録されていません（curfew add youtube.com のように登録できます）"
+  fi
+}
+
+cmd_add() {
+  [ $# -gt 0 ] || die "追加するドメインを指定してください（例: curfew add tiktok.com）"
+  require_blocklist
+  for arg in "$@"; do
+    valid_domain "$(host_of "$arg")" || die "ドメインとして不正です: $arg"
+  done
+  require_write add "$@"
+
+  known=$(blocklist_domains | tr 'A-Z' 'a-z')
+  added=""
+  for arg in "$@"; do
+    d=$(host_of "$arg")
+    if printf '%s\n' "$known" | grep -qxF "$d"; then
+      echo "登録済みです: $d"
+    else
+      known="$known
+$d"
+      added="$added $d"
+    fi
+  done
+  [ -n "$added" ] || return 0
+
+  # 最終行に改行が無いと、追記したドメインが前の行につながってしまう
+  if [ -s "$CURFEW_BLOCKLIST" ] && [ -n "$(tail -c 1 "$CURFEW_BLOCKLIST")" ]; then
+    echo >> "$CURFEW_BLOCKLIST"
+  fi
+  for d in $added; do
+    echo "$d" >> "$CURFEW_BLOCKLIST"
+  done
+  apply_now
+  echo "追加しました:$added"
+}
+
+cmd_remove() {
+  [ $# -gt 0 ] || die "削除するドメインを指定してください（例: curfew remove tiktok.com）"
+  require_blocklist
+  known=$(blocklist_domains | tr 'A-Z' 'a-z')
+  removed=""
+  for arg in "$@"; do
+    d=$(host_of "$arg")
+    printf '%s\n' "$known" | grep -qxF "$d" || die "登録されていません: $d"
+    removed="$removed $d"
+  done
+  require_write remove "$@"
+
+  tmp=$(mktemp)
+  # コメント行や空行は残し、指定したドメインの行だけを除く
+  REMOVED="$removed" awk '
+    BEGIN {
+      n = split(ENVIRON["REMOVED"], list, " ")
+      for (i = 1; i <= n; i++) drop[list[i]] = 1
+    }
+    {
+      line = $0
+      sub(/#.*/, "", line)
+      split(line, f, " ")
+      if (tolower(f[1]) in drop) next
+      print
+    }
+  ' "$CURFEW_BLOCKLIST" > "$tmp"
+  cat "$tmp" > "$CURFEW_BLOCKLIST"
+  rm -f "$tmp"
+  apply_now
+  echo "削除しました:$removed"
+}
+
+cmd_set_time() {
+  [ $# -eq 2 ] || die "開始と終了を指定してください（例: curfew set-time 21:00 22:00）"
+  start=$(normalize_time "$1") || die "時刻が不正です: $1（HH:MM か HHMM で指定してください）"
+  end=$(normalize_time "$2") || die "時刻が不正です: $2（HH:MM か HHMM で指定してください）"
+  [ "$start" != 2400 ] || die "開始に 24:00 は使えません（00:00 を指定してください）"
+  [ "$(to_minutes "$start")" -ne "$(to_minutes "$end")" ] || die "開始と終了が同じです: $1 $2"
+  require_write set-time "$@"
+
+  write_config "$start" "$end"
+  apply_now
+  echo "許可時間帯を $(format_time "$start")〜$(format_time "$end") に変更しました"
+}
+
+cmd_log() {
+  n=${1:-20}
+  case $n in
+    '' | *[!0-9]*) die "件数は数字で指定してください: $n" ;;
+  esac
+  # 同じ時刻なら切り替え（curfew.log）を先に並べる
+  logs=$(cat "$CURFEW_APPLY_LOG" "$CURFEW_CLOSE_TABS_LOG" 2> /dev/null | sort -s -k1,2 | tail -n "$n")
+  if [ -n "$logs" ]; then
+    printf '%s\n' "$logs"
+  else
+    echo "記録はありません"
+  fi
+}
+
+cmd_uninstall() {
+  confirmed=0
+  case ${1:-} in
+    '') ;;
+    -y | --yes) confirmed=1 ;;
+    *) die "不明なオプションです: $1" ;;
+  esac
+  # install.sh が libexec に置いた uninstall.sh を使う。リポジトリの bin/curfew から実行したときは無い
+  uninstaller="$LIBEXEC/uninstall.sh"
+  [ -r "$uninstaller" ] \
+    || die "インストールされた curfew が見つかりません（リポジトリからは sudo ./uninstall.sh で削除できます）"
+
+  if [ "$confirmed" -eq 0 ]; then
+    printf 'curfew を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
+    read -r answer || answer=""
+    case $answer in
+      y | Y | yes | YES) ;;
+      *)
+        echo "中止しました"
+        exit 1
+        ;;
+    esac
+  fi
+
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "管理者権限が必要です。sudo で実行し直します" >&2
+    exec sudo "$0" uninstall --yes
+  fi
+  exec sh "$uninstaller"
+}
+
+cmd=${1:-status}
+[ $# -eq 0 ] || shift
+case $cmd in
+  status) cmd_status ;;
+  list) cmd_list ;;
+  add) cmd_add "$@" ;;
+  remove) cmd_remove "$@" ;;
+  set-time) cmd_set_time "$@" ;;
+  log) cmd_log "$@" ;;
+  uninstall) cmd_uninstall "$@" ;;
+  help | -h | --help) usage ;;
+  *)
+    echo "curfew: 不明なコマンドです: $cmd" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
