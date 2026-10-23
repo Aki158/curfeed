@@ -27,7 +27,9 @@ usage() {
   remove <ドメイン>...     ブロックするドメインを削除する
   set-time <開始-終了>...  許可時間帯をまとめて置き換える（例: curfeed set-time 12:00-13:00 21:00-22:00）
   log [件数]               切り替えとタブを閉じた記録を表示する（既定は 20 件）
-  uninstall [--yes]        curfeed を削除し、hosts のブロックも解除する（--yes で確認を省く）
+  uninstall [--purge] [--yes]
+                           curfeed を削除し、hosts のブロックも解除する
+                           （--purge で設定・ログなども削除、--yes で確認を省く）
   help                     この説明を表示する
 
 add / remove / set-time / uninstall は管理者権限で実行します（必要ならパスワードを求めます）。
@@ -277,18 +279,25 @@ cmd_log() {
 
 cmd_uninstall() {
   confirmed=0
-  case ${1:-} in
-    '') ;;
-    -y | --yes) confirmed=1 ;;
-    *) die "不明なオプションです: $1" ;;
-  esac
+  purge=""
+  for opt in "$@"; do
+    case $opt in
+      -y | --yes) confirmed=1 ;;
+      --purge) purge=--purge ;;
+      *) die "不明なオプションです: $opt" ;;
+    esac
+  done
   # install.sh が libexec に置いた uninstall.sh を使う。リポジトリの bin/curfeed から実行したときは無い
   uninstaller="$LIBEXEC/uninstall.sh"
   [ -r "$uninstaller" ] \
     || die "インストールされた curfeed が見つかりません（リポジトリからは sudo ./uninstall.sh で削除できます）"
 
   if [ "$confirmed" -eq 0 ]; then
-    printf 'curfeed を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
+    if [ -n "$purge" ]; then
+      printf 'curfeed を削除し、hosts のブロックも解除します。設定・ログなども含めてすべて削除します。よろしいですか？ [y/N] '
+    else
+      printf 'curfeed を削除し、hosts のブロックも解除します。よろしいですか？ [y/N] '
+    fi
     read -r answer || answer=""
     case $answer in
       y | Y | yes | YES) ;;
@@ -301,9 +310,9 @@ cmd_uninstall() {
 
   if [ "$(id -u)" -ne 0 ]; then
     echo "管理者権限が必要です。sudo で実行し直します" >&2
-    exec sudo "$0" uninstall --yes
+    exec sudo "$0" uninstall --yes $purge
   fi
-  exec sh "$uninstaller"
+  exec sh "$uninstaller" $purge
 }
 
 cmd=${1:-status}

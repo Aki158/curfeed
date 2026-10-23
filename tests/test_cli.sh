@@ -203,7 +203,7 @@ setup_installed() {
   rm -rf "$WORK/prefix"
   mkdir -p "$WORK/prefix"
   cp -R "$ROOT/bin" "$ROOT/libexec" "$WORK/prefix/"
-  printf '#!/bin/sh\necho ran >> "$STUB_DIR/uninstall"\n' > "$WORK/prefix/libexec/curfeed/uninstall.sh"
+  printf '#!/bin/sh\necho "ran $*" >> "$STUB_DIR/uninstall"\n' > "$WORK/prefix/libexec/curfeed/uninstall.sh"
 }
 # 引数: curfeed の引数...。標準入力は呼び出し側から渡す
 run_installed() {
@@ -230,6 +230,18 @@ CURFEED_ETC="$WORK/etc" STUB_DIR="$WORK/stub" PATH="$WORK/rootbin:$WORK/bin:$PAT
   sh "$WORK/prefix/bin/curfeed" uninstall --yes < /dev/null > "$WORK/stdout" 2> "$WORK/stderr"
 check "root なら uninstall.sh を実行する" "$(uninstall_runs)" 1
 check "root なら sudo は使わない" "$(sudo_args)" ""
+check "--purge が無ければ uninstall.sh にも付けない" "$(cat "$WORK/stub/uninstall")" "ran "
+setup_installed; printf 'y\n' | run_installed uninstall --purge
+check "--purge なら確認ですべて削除することを伝える" "$(grep -c '設定・ログなども含めてすべて削除します' "$WORK/stdout")" 1
+check "--purge なら sudo で実行し直すときにも付ける" "$(sudo_args)" "uninstall --yes --purge"
+setup_installed; run_installed uninstall --purge --yes < /dev/null
+check "--purge と --yes は順番を問わない" "$(sudo_args)" "uninstall --yes --purge"
+setup_installed
+CURFEED_ETC="$WORK/etc" STUB_DIR="$WORK/stub" PATH="$WORK/rootbin:$WORK/bin:$PATH" \
+  sh "$WORK/prefix/bin/curfeed" uninstall --yes --purge < /dev/null > "$WORK/stdout" 2> "$WORK/stderr"
+check "root なら uninstall.sh に --purge を渡す" "$(cat "$WORK/stub/uninstall")" "ran --purge"
+setup_installed; printf 'n\n' | run_installed uninstall --purge
+check "--purge でも確認で n なら何もしない" "$(sudo_args)$(uninstall_runs)" "0"
 setup; run 2130 uninstall --yes < /dev/null; status=$?
 check "インストールされていない（リポジトリから実行した）ならエラー終了する" "$(nonzero $status)" nonzero
 check "リポジトリの uninstall.sh を案内する" "$(grep -c 'sudo ./uninstall.sh' "$WORK/stderr")" 1
@@ -242,6 +254,7 @@ setup; run 2130 help; status=$?
 check "help は終了コード 0" "$status" 0
 check "help で使い方を表示する" "$(grep -c '^使い方: curfeed' "$WORK/stdout")" 1
 check "help に uninstall を載せる" "$(grep -c '^  uninstall' "$WORK/stdout")" 1
+check "help に --purge を載せる" "$(grep '^  uninstall' "$WORK/stdout" | grep -c -- '--purge')" 1
 setup; run 2130 unknown-command; status=$?
 check "不明なコマンドは終了コード 2" "$status" 2
 check "不明なコマンドを伝える" "$(grep -c '不明なコマンドです: unknown-command' "$WORK/stderr")" 1

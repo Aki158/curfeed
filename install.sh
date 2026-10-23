@@ -15,9 +15,11 @@ AGENT_PLIST=/Library/LaunchAgents/$AGENT_LABEL.plist
 APPLY_LOG=/var/log/curfeed.log
 AGENT_LOG=/var/log/curfeed-close-tabs.log
 console_uid=$(stat -f %u /dev/console)
+CURFEED_ETC=$ETC
+. libexec/curfeed/lib.sh
 
 # 初回だけ元の hosts を退避する
-[ -e /etc/hosts.before-curfeed ] || cp -p /etc/hosts /etc/hosts.before-curfeed
+[ -e "$CURFEED_HOSTS_BACKUP" ] || cp -p "$CURFEED_HOSTS" "$CURFEED_HOSTS_BACKUP"
 
 mkdir -p "$PREFIX/bin" "$LIBEXEC"
 install -m 755 -o root -g wheel bin/curfeed "$PREFIX/bin/curfeed"
@@ -28,8 +30,6 @@ install -m 755 -o root -g wheel uninstall.sh "$LIBEXEC/uninstall.sh"
 
 # 設定が無ければ初期値（24 時間許可、ブロック対象なし）で作る。
 # 再インストール時は、編集済みの設定をそのまま使う
-CURFEED_ETC=$ETC
-. "$LIBEXEC/lib.sh"
 init_settings
 chmod 644 "$CURFEED_CONFIG" "$CURFEED_BLOCKLIST"
 

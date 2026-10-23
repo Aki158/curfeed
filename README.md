@@ -65,7 +65,7 @@ curfeed add tiktok.com          # ドメインを追加（URL を貼り付けて
 curfeed remove tiktok.com       # ドメインを削除
 curfeed set-time 12:00-13:00 21:00-22:00   # 許可時間帯をまとめて置き換え（00:00-24:00 で 24 時間許可）
 curfeed log                     # 切り替えとタブを閉じた記録（curfeed log 50 で件数指定）
-curfeed uninstall               # curfeed を削除（確認あり。--yes で確認を省く）
+curfeed uninstall               # curfeed を削除（確認あり。--purge で設定なども削除、--yes で確認を省く）
 curfeed help                    # 使い方
 ```
 
@@ -113,16 +113,18 @@ curfeed は次のタイミングで Chrome の通信プロセス（Network Servi
 ## アンインストール
 
 ```sh
-curfeed uninstall
+curfeed uninstall            # 設定などは残す（入れ直したときに引き継ぐ）
+curfeed uninstall --purge    # 設定・ログなども含めてすべて削除する
 ```
 
-リポジトリが手元にあれば、`sudo ./uninstall.sh`（または `make uninstall`）でも同じように削除できます。
+リポジトリが手元にあれば、`sudo ./uninstall.sh`（`--purge` も使えます）や `make uninstall` でも同じように削除できます。
 
-プログラム本体・launchd のジョブ・hosts のブロック区間を取り除きます。
+どちらも、プログラム本体・launchd のジョブ・hosts のブロック区間を取り除きます。
 
 ### アンインストール後に残るもの
 
-入れ直したときに設定を引き継げるよう、次のファイルは残します。
+`--purge` を付けなかった場合は、入れ直したときに設定を引き継げるよう、次のファイルを残します。
+アンインストールの最後に、残したものをすべて消すコマンドが表示されるので、あとから消したくなったらそれを実行してください。
 
 | ファイル | 中身 |
 |---|---|
@@ -133,15 +135,14 @@ curfeed uninstall
 | `/etc/hosts.before-curfeed` | curfeed を入れる前の hosts（元に戻すときの保険） |
 | `~/Library/Application Support/curfeed/` | タブを閉じる側が前回の状態を記録する場所 |
 
-完全に消す場合は、アンインストールのあとに次を実行してください。
-`/etc/hosts.before-curfeed` を消すのは、`/etc/hosts` からブロック区間（`# >>> curfeed >>>` で始まる部分）が消えていることを確かめてからにしてください。
+表示されたコマンドを見逃した場合は、次のコマンドで同じように消せます。
 
 ```sh
 sudo rm -rf /usr/local/etc/curfeed /var/log/curfeed.log /var/log/curfeed-close-tabs.log /etc/hosts.before-curfeed
 rm -rf ~/"Library/Application Support/curfeed"
 ```
 
-ファイル以外に、Chrome を操作する許可も残ります。不要なら システム設定 → プライバシーとセキュリティ → オートメーション でオフにしてください。
+ファイル以外に、Chrome を操作する許可も残ります（`--purge` でも消えません）。不要なら システム設定 → プライバシーとセキュリティ → オートメーション でオフにしてください。
 
 ## 制限事項
 
