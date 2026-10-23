@@ -65,7 +65,10 @@ echo "    curfeed add youtube.com www.youtube.com"
 echo "    curfeed set-time 21:00-22:00"
 echo "  ログ:   curfeed log"
 echo "  アンインストール:   curfeed uninstall"
-echo "Chrome の操作許可を求められたら「OK」を押してください"
+echo "  ※ 初めてのときだけ、ブロック中に Chrome を開いていると「Google Chrome を制御しようとしています」"
+echo "     という確認が出ます（インストール直後ではなく、ブロックが始まったときに出ることもあります）。"
+echo "     開いたままのタブを閉じるのに使うので「OK」を押してください。"
+echo "     あとから システム設定 > プライバシーとセキュリティ > オートメーション でも変えられます。"
 echo
 # 最初の切り替えが終わってから状態を表示する
 sleep 2
