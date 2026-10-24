@@ -1,16 +1,21 @@
 #!/bin/sh
 # curfeed をインストールして launchd に登録する。実行: sudo ./install.sh
+#
+# 環境変数で上書きできる値（lib.sh のものに加えて）:
+#   CURFEED_PREFIX   本体を置く場所（既定 /usr/local）
+#   CURFEED_LIBRARY  launchd の設定を置く場所（既定 /Library）
 set -eu
 
 [ "$(id -u)" -eq 0 ] || { echo "sudo ./install.sh で実行してください" >&2; exit 1; }
 cd "$(dirname "$0")"
 
-PREFIX=/usr/local
+PREFIX=${CURFEED_PREFIX:-/usr/local}
+LIBRARY=${CURFEED_LIBRARY:-/Library}
 LIBEXEC=$PREFIX/libexec/curfeed
 DAEMON_LABEL=local.curfeed
-DAEMON_PLIST=/Library/LaunchDaemons/$DAEMON_LABEL.plist
+DAEMON_PLIST=$LIBRARY/LaunchDaemons/$DAEMON_LABEL.plist
 AGENT_LABEL=local.curfeed.close-tabs
-AGENT_PLIST=/Library/LaunchAgents/$AGENT_LABEL.plist
+AGENT_PLIST=$LIBRARY/LaunchAgents/$AGENT_LABEL.plist
 console_uid=$(stat -f %u /dev/console)
 # 設定・ログ・hosts の置き場所は lib.sh の値を使う
 . libexec/curfeed/lib.sh
