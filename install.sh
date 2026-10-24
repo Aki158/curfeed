@@ -31,7 +31,9 @@ install -m 755 -o root -g wheel libexec/curfeed/close-tabs "$LIBEXEC/close-tabs"
 install -m 755 -o root -g wheel uninstall.sh "$LIBEXEC/uninstall.sh"
 
 # 設定が無ければ初期値（24 時間許可、ブロック対象なし）で作る。
-# 再インストール時は、編集済みの設定をそのまま使う
+# 再インストール時は、編集済みの設定をそのまま使う。
+# 設定が無いときを初めてのインストール（--purge でアンインストールしたあとも含む）とみなし、表示を変える
+if [ -e "$CURFEED_CONFIG" ]; then first_install=0; else first_install=1; fi
 init_settings
 chmod 644 "$CURFEED_CONFIG" "$CURFEED_BLOCKLIST"
 
@@ -60,18 +62,18 @@ if [ "$console_uid" -ne 0 ]; then
 fi
 
 echo
-echo "インストールしました"
-echo "  設定:   ${CURFEED_ETC}/（curfeed add / remove / set-time で変更できます）"
-echo "  初めての場合は、ブロックするサイトと許可時間帯を決めてください:"
-echo "    curfeed add youtube.com www.youtube.com"
-echo "    curfeed set-time 21:00-22:00"
-echo "  ログ:   curfeed log"
-echo "  アンインストール:   curfeed uninstall"
-echo "  ※ 初めてのときだけ、ブロック中に Chrome を開いていると「Google Chrome を制御しようとしています」"
-echo "     という確認が出ます（インストール直後ではなく、ブロックが始まったときに出ることもあります）。"
-echo "     開いたままのタブを閉じるのに使うので「OK」を押してください。"
-echo "     あとから システム設定 > プライバシーとセキュリティ > オートメーション でも変えられます。"
+if [ "$first_install" -eq 1 ]; then
+  echo "インストールしました"
+  echo
+  echo "※ ブロック中に Chrome を開いていると、初めてのときだけ「Google Chrome を制御しようとしています」と出ます。"
+  echo "   開いたままのタブを閉じるのに使うので「OK」を押してください。"
+  echo "※ Chrome を使う場合は、README の「Chrome の QUIC（HTTP/3）を止める」も行ってください。"
+else
+  echo "インストールしました（設定は引き継いでいます）"
+fi
+echo "使い方: curfeed help"
 echo
-# 最初の切り替えが終わってから状態を表示する
+# 最初の切り替えが終わってから状態を表示する。
+# 次にやること（ブロックするサイトと許可時間帯を決める）は、まだ決めていなければ status が案内する
 sleep 2
 "$PREFIX/bin/curfeed" status

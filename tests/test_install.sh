@@ -106,7 +106,11 @@ check "タブを閉じるジョブを、ログイン中のユーザーの画面�
   "$(grep -c "^bootstrap gui/501 $AGENT_PLIST\$" "$WORK/stub/launchctl")" 1
 check "登録されていないジョブは止めない" "$(grep -c '^bootout' "$WORK/stub/launchctl")" 0
 check "「インストールしました」と表示する" "$(head -n 2 "$WORK/stdout" | grep -cx 'インストールしました')" 1
+check "Chrome の操作許可の確認が出ることを伝える" "$(count 'Google Chrome を制御しようとしています')" 1
+check "README の QUIC を止める手順を案内する" "$(count 'README の「Chrome の QUIC（HTTP/3）を止める」')" 1
+check "詳しい使い方は curfeed help に任せる" "$(grep -cx '使い方: curfeed help' "$WORK/stdout")" 1
 check "最後に今の状態を表示する" "$(count '^状態: 許可中')" 1
+check "次にやること（add / set-time）の案内は status の1回だけ" "$(count 'curfeed add')" 1
 
 echo "入れ直し（設定を引き継ぐ）"
 setup; run
@@ -124,6 +128,10 @@ check "退避した元の hosts を上書きしない" "$(cat "$SYS/hosts.before
 check "登録済みのジョブは、止めてから登録し直す" "$(grep -E '^(bootout|bootstrap)' "$WORK/stub/launchctl")" \
   "$(printf 'bootout system %s\nbootstrap system %s\nbootout gui/501 %s\nbootstrap gui/501 %s' \
     "$DAEMON_PLIST" "$DAEMON_PLIST" "$AGENT_PLIST" "$AGENT_PLIST")"
+check "設定を引き継いだことを表示する" "$(head -n 2 "$WORK/stdout" | grep -cx 'インストールしました（設定は引き継いでいます）')" 1
+check "Chrome の操作許可の説明は出さない" "$(count 'Google Chrome を制御しようとしています')" 0
+check "QUIC の案内は出さない" "$(count 'QUIC')" 0
+check "詳しい使い方は curfeed help に任せる" "$(grep -cx '使い方: curfeed help' "$WORK/stdout")" 1
 check "最後に今の状態を表示する" "$(count '^状態: ブロック中')" 1
 
 echo "ログイン中のユーザーがいないとき（ログイン画面や ssh から実行）"
