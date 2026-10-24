@@ -18,7 +18,7 @@
 ## インストール
 
 ```sh
-git clone <このリポジトリの URL> ~/workspace/curfeed
+git clone https://github.com/Aki158/curfeed.git ~/workspace/curfeed
 cd ~/workspace/curfeed
 sudo ./install.sh
 ```
