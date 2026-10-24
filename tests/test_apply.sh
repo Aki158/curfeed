@@ -136,6 +136,12 @@ setup; assert_error_unchanged "現在時刻が不正（2460）" run 2460
 setup; assert_error_unchanged "現在時刻が不正（abc）" run abc
 setup; printf '%s\n' '# >>> curfeed >>>' '0.0.0.0 www.youtube.com' >> "$WORK/hosts"
 assert_error_unchanged "hosts の開始マーカーに対応する終了マーカーが無い" run 2130
+setup; printf '%s\n' '0.0.0.0 www.youtube.com' '# <<< curfeed <<<' >> "$WORK/hosts"
+assert_error_unchanged "hosts に終了マーカーだけがある" run 2130
+setup; printf '%s\n' '# <<< curfeed <<<' '0.0.0.0 www.youtube.com' '# >>> curfeed >>>' '# 手で書いた行' >> "$WORK/hosts"
+assert_error_unchanged "hosts の終了マーカーが開始マーカーより前にある" run 2059
+setup; printf '%s\n' '# >>> curfeed >>>' '# <<< curfeed <<<' '# >>> curfeed >>>' '# <<< curfeed <<<' >> "$WORK/hosts"
+assert_error_unchanged "hosts にブロック区間が2つある" run 2059
 setup; run 2059
 if grep -q '^20[0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] ' "$WORK/stdout"; then
   ok "ログ行は日時から始まる"

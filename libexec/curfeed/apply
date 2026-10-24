@@ -24,10 +24,7 @@ for d in $domains; do
   valid_domain "$d" || die "blocklist にドメインとして不正な値があります: $d"
 done
 
-begins=$(grep -cxF "$CURFEED_BEGIN_MARK" "$CURFEED_HOSTS" || true)
-ends=$(grep -cxF "$CURFEED_END_MARK" "$CURFEED_HOSTS" || true)
-[ "$begins" -le 1 ] && [ "$begins" -eq "$ends" ] \
-  || die "$CURFEED_HOSTS のマーカー行が壊れています。手動で確認してください"
+valid_markers || die "$CURFEED_HOSTS のマーカー行が壊れています。手動で確認してください"
 
 # ブロック対象が空なら、ブロック時間でもブロック区間は作らない
 if [ "$allowed" -eq 0 ] && [ -n "$domains" ]; then block=1; else block=0; fi

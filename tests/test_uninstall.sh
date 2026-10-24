@@ -96,6 +96,12 @@ setup; rm -rf "$SYS/etc/curfeed" "$SYS/log/curfeed.log" "$SYS/log/curfeed-close-
 check "設定などが何も残っていなければ消すコマンドは表示しない" "$(grep -c 'sudo rm' "$WORK/stdout")" 0
 check_gone "設定などが何も残っていなくても状態の記録は消す" "$DATA"
 
+echo "ブロック区間が無いとき（許可時間中）"
+setup; printf '127.0.0.1\tlocalhost\n# 手書きの行\n' > "$SYS/hosts"; run; status=$?
+check "終了コード 0" "$status" 0
+check_gone "本体と launchd の設定を削除する" $PROGRAM
+check "hosts はそのまま" "$(cat "$SYS/hosts")" "$EXPECTED_HOSTS"
+
 echo "--purge"
 setup; run --purge; status=$?
 check "終了コード 0" "$status" 0
@@ -115,5 +121,41 @@ check_kept "root でなければ何も消さない" $PROGRAM "$SYS/etc/curfeed"
 setup; run --force; status=$?
 check "不明なオプションは終了コードが 0 以外" "$([ "$status" -ne 0 ] && echo nonzero)" nonzero
 check_kept "不明なオプションのときは何も消さない" $PROGRAM "$SYS/etc/curfeed"
+
+# 引数: テスト名 hosts の中身。hosts を変えず、ジョブも止めず、何も消さずに、
+# 理由を表示してエラー終了すれば ok
+assert_refuses_broken_markers() {
+  name=$1
+  setup
+  printf '%s\n' "$2" > "$SYS/hosts"
+  cp "$SYS/hosts" "$WORK/hosts.before"
+  gone=""
+  if run; then
+    ng "$name" "終了コードが 0 でした"
+    return
+  fi
+  for p in $PROGRAM "$SYS/etc/curfeed/config" "$DATA/state"; do
+    [ -e "$p" ] || gone="$gone $p"
+  done
+  if ! cmp -s "$SYS/hosts" "$WORK/hosts.before"; then
+    ng "$name" "hosts が変更されました: $(cat "$SYS/hosts")"
+  elif [ -e "$WORK/stub/launchctl" ]; then
+    ng "$name" "ジョブを止めました: $(cat "$WORK/stub/launchctl")"
+  elif [ -n "$gone" ]; then
+    ng "$name" "消えている:$gone"
+  elif ! grep -q 'マーカー行が壊れています' "$WORK/stderr"; then
+    ng "$name" "理由が表示されていません: $(cat "$WORK/stderr")"
+  else
+    ok "$name"
+  fi
+}
+assert_refuses_broken_markers "hosts に開始マーカーだけがある（後ろの行を消さない）" \
+  "$(printf '127.0.0.1\tlocalhost\n# >>> curfeed >>>\n0.0.0.0 x.com\n# 手書きの行')"
+assert_refuses_broken_markers "hosts に終了マーカーだけがある" \
+  "$(printf '127.0.0.1\tlocalhost\n0.0.0.0 x.com\n# <<< curfeed <<<\n# 手書きの行')"
+assert_refuses_broken_markers "hosts の終了マーカーが開始マーカーより前にある" \
+  "$(printf '127.0.0.1\tlocalhost\n# <<< curfeed <<<\n0.0.0.0 x.com\n# >>> curfeed >>>\n# 手書きの行')"
+assert_refuses_broken_markers "hosts にブロック区間が2つある" \
+  "$(printf '# >>> curfeed >>>\n0.0.0.0 x.com\n# <<< curfeed <<<\n# 手書きの行\n# >>> curfeed >>>\n# <<< curfeed <<<')"
 
 finish

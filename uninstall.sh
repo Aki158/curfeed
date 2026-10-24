@@ -28,6 +28,14 @@ else
   . "$here/libexec/curfeed/lib.sh"
 fi
 
+# マーカー行が壊れていたら、apply と同じく hosts に触らない。
+# 途中までアンインストールした状態にならないよう、ジョブを止める前に確かめて何もせずに止める
+if ! valid_markers; then
+  echo "${CURFEED_HOSTS} のマーカー行が壊れています。" >&2
+  echo "「${CURFEED_BEGIN_MARK}」と「${CURFEED_END_MARK}」が、この順に1組だけになるよう直してから、もう一度実行してください（まだ何も変更していません）" >&2
+  exit 1
+fi
+
 PREFIX=${CURFEED_PREFIX:-/usr/local}
 LIBRARY=${CURFEED_LIBRARY:-/Library}
 DAEMON_PLIST=$LIBRARY/LaunchDaemons/local.curfeed.plist

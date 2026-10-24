@@ -205,6 +205,16 @@ valid_domain() {
   esac
 }
 
+# hosts のマーカー行が正しければ成功する（ブロック区間が無いか、開始・終了の順に1組だけある）。
+# 壊れたまま区間を取り除くと、開始マーカーより後ろの行まで消してしまうので、書き換える前に確かめる
+valid_markers() {
+  awk -v b="$CURFEED_BEGIN_MARK" -v e="$CURFEED_END_MARK" '
+    $0 == b { if (begins++) bad = 1; inside = 1 }
+    $0 == e { if (!inside) bad = 1; inside = 0 }
+    END { exit (bad || inside) }
+  ' "$CURFEED_HOSTS"
+}
+
 # hosts のブロック区間に書かれたホストを出す。区間が無ければ何も出さない
 blocked_hosts() {
   awk -v b="$CURFEED_BEGIN_MARK" -v e="$CURFEED_END_MARK" '
