@@ -108,7 +108,8 @@ check "消すコマンドは表示しない" "$(grep -c 'sudo rm' "$WORK/stdout"
 check "Chrome の操作許可の外し方は案内する" "$(grep -c 'オートメーション' "$WORK/stdout")" 1
 
 echo "異常系（何も消さずにエラー終了する）"
-setup; STUB_UID=501 run; status=$?
+# sh では関数の前に書いた変数が呼び出し後も残るので、後のテストに影響しないようサブシェルで実行する
+setup; (STUB_UID=501 run); status=$?
 check "root でなければ終了コードが 0 以外" "$([ "$status" -ne 0 ] && echo nonzero)" nonzero
 check_kept "root でなければ何も消さない" $PROGRAM "$SYS/etc/curfeed"
 setup; run --force; status=$?
